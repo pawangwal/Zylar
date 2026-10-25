@@ -6,6 +6,7 @@ import os
 import networkx as nx
 from dotenv import load_dotenv
 from streamlit_autorefresh import st_autorefresh
+from zylar.core.settings import get_settings
 
 load_dotenv()
 
@@ -14,7 +15,8 @@ st.set_page_config(page_title="ZYLAR Autonomous SOC", layout="wide", page_icon="
 # Auto-refresh every 15 seconds
 count = st_autorefresh(interval=15000, limit=None, key="zylar_autorefresh")
 
-API_URL = "http://localhost:8000"
+settings = get_settings()
+API_URL = f"http://{settings.api_host}:{settings.api_port}"
 
 st.title("🛡️ ZYLAR v2 – Autonomous Self-Evolving SOC AI System")
 
@@ -28,49 +30,55 @@ st.sidebar.markdown("✔️ **FastAPI Backend**: Online")
 st.sidebar.markdown("✔️ **SQLite Memory**: Active")
 st.sidebar.markdown("✔️ **Background Scheduler**: Running (30s interval)")
 
-tab1, tab2, tab3 = st.tabs(["🔴 Real-time Dashboard", "📄 Incident Timeline", "🧠 Threat Graph & Intelligence"])
+tab1, tab2, tab3 = st.tabs(
+    ["🔴 Real-time Dashboard", "📄 Incident Timeline", "🧠 Threat Graph & Intelligence"]
+)
 
 with tab1:
     col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-    
+
     recent_logs = []
     attacks_count = 0
     top_ips = []
     top_users = []
     reports = []
-    
+
     # Fetch Data
     try:
-        res = requests.get(f"{API_URL}/api/logs/recent?minutes=10")
+        res = requests.get(
+            f"{API_URL}/api/logs/recent?minutes=10", timeout=settings.request_timeout_seconds
+        )
         if res.status_code == 200:
             recent_logs = res.json().get("logs", [])
-            
-        rep_res = requests.get(f"{API_URL}/api/reports")
+
+        rep_res = requests.get(f"{API_URL}/api/reports", timeout=settings.request_timeout_seconds)
         if rep_res.status_code == 200:
             reports = rep_res.json().get("reports", [])
             attacks_count = len(reports)
-            
-        off_res = requests.get(f"{API_URL}/api/offenders")
+
+        off_res = requests.get(f"{API_URL}/api/offenders", timeout=settings.request_timeout_seconds)
         if off_res.status_code == 200:
             data = off_res.json().get("data", {})
             top_ips = data.get("top_ips", [])
             top_users = data.get("top_users", [])
-            
+
     except Exception as e:
         st.error(f"Error connecting to backend API: {e}")
-        
+
     latest_risk = 0
     if reports:
         latest_risk = reports[0].get("risk_score", 0)
-        
-    col_kpi1.metric("Current System Risk Score", f"{latest_risk}/100", delta=None, delta_color="inverse")
+
+    col_kpi1.metric(
+        "Current System Risk Score", f"{latest_risk}/100", delta=None, delta_color="inverse"
+    )
     col_kpi2.metric("Incidents Logged", str(attacks_count))
     col_kpi3.metric("Logs Monitored (10m)", str(len(recent_logs)))
-    
+
     st.markdown("---")
-    
+
     col_left, col_right = st.columns([1, 1])
-    
+
     with col_left:
         st.subheader("Recurring Offenders (Persistent Memory)")
         if top_ips:
@@ -79,17 +87,17 @@ with tab1:
             st.dataframe(df_ips, use_container_width=True)
         else:
             st.info("No recurring IP threats in memory.")
-            
+
         if top_users:
             df_users = pd.DataFrame(top_users)
             st.markdown("**Top Compromised/Malicious Users**")
             st.dataframe(df_users, use_container_width=True)
-            
+
     with col_right:
         st.subheader("Live Event Distribution")
         if recent_logs:
             df_logs = pd.DataFrame(recent_logs)
-            event_counts = df_logs['event_type'].value_counts()
+            event_counts = df_logs["event_type"].value_counts()
             st.bar_chart(event_counts)
         else:
             st.info("No live logs detected.")
@@ -98,17 +106,19 @@ with tab2:
     st.header("Autonomous Incident Timeline")
     if reports:
         for rep in reports:
-            risk = rep.get('risk_score', 0)
+            risk = rep.get("risk_score", 0)
             color = "🔴" if risk >= 80 else "🟠" if risk >= 60 else "🟡" if risk >= 40 else "🟢"
-            
-            with st.expander(f"{color} {rep.get('timestamp')} | {rep.get('attack_classification')} (Risk: {risk}/100)"):
+
+            with st.expander(
+                f"{color} {rep.get('timestamp')} | {rep.get('attack_classification')} (Risk: {risk}/100)"
+            ):
                 st.markdown(f"**Incident ID:** `{rep.get('incident_id')}`")
                 st.markdown(f"**Anomalous Events Triaged:** {rep.get('anomalous_events_count')}")
-                
+
                 st.subheader("Mitigation Plan (Ollama AI)")
                 for step in rep.get("mitigation_plan", []):
                     st.markdown(f"- {step}")
-                    
+
                 st.subheader("Threat Intelligence")
                 st.json(rep.get("threat_intel"))
     else:
@@ -116,25 +126,31 @@ with tab2:
 
 with tab3:
     st.header("Real-Time Threat Correlation Graph")
-    st.markdown("Displays entity relationships (IPs, Users, Ports) across the latest detected anomalies to identify highly connected attack nodes.")
-    
+    st.markdown(
+        "Displays entity relationships (IPs, Users, Ports) across the latest detected anomalies to identify highly connected attack nodes."
+    )
+
     if recent_logs:
         # Build ephemeral graph out of failures and rare events to visualize attack network
         df = pd.DataFrame(recent_logs)
-        anomalies = [log for log in recent_logs if log.get("status") in ["failed", "rejected"] or log.get("event_type") == "ransomware"]
-        
+        anomalies = [
+            log
+            for log in recent_logs
+            if log.get("status") in ["failed", "rejected"] or log.get("event_type") == "ransomware"
+        ]
+
         if anomalies:
             G = nx.Graph()
             for event in anomalies:
                 src_ip = event.get("source_ip")
                 user = event.get("username", event.get("user"))
                 dest_port = event.get("destination_port")
-                
+
                 if src_ip and user:
                     G.add_edge(f"IP:{src_ip[-8:]}", f"User:{user}", type="login")
                 if src_ip and dest_port:
                     G.add_edge(f"IP:{src_ip[-8:]}", f"Port:{dest_port}", type="scan")
-                    
+
             if len(G.edges) > 0:
                 dot = "graph {\n"
                 dot += '  node [style="filled", fontname="Arial", shape="box", fillcolor="#444444", fontcolor="white", rounded="true"];\n'
@@ -142,9 +158,9 @@ with tab3:
                 for u, v in G.edges():
                     dot += f'  "{u}" -- "{v}";\n'
                 dot += "}"
-                
+
                 st.graphviz_chart(dot)
-                
+
                 # Centrality metrics
                 deg = nx.degree_centrality(G)
                 top_nodes = sorted(deg.items(), key=lambda x: x[1], reverse=True)[:5]
