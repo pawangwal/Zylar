@@ -1,5 +1,7 @@
 import unittest
+
 from agents.anomaly_agent import detect_anomalies_node
+
 
 class TestAnomalyAgent(unittest.TestCase):
     def test_detect_anomalies_empty(self):

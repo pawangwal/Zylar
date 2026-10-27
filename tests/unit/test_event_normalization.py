@@ -19,11 +19,85 @@ def test_normalize_elasticsearch_hit_with_source():
 
     event = EventNormalizer.normalize_single(hit)
     assert isinstance(event, NormalizedEvent)
-    # Event ID resolved from ES _id since _source had no event_id
-    assert event.event_id == "es-doc-123"
+    # Event ID resolved from ES _id scoped by index
+    assert event.event_id == "security-logs-2026:es-doc-123"
     assert event.source == "security-logs-2026"
     assert event.source_ip == "10.0.0.5"
     assert event.user == "root"
+
+
+def test_event_identity_precedence_tier1_stable_event_id():
+    """Tier 1: Explicit event_id takes precedence over ES _id and documented fields."""
+    raw = {
+        "_index": "security-logs",
+        "_id": "es-id-999",
+        "_source": {
+            "event_id": "explicit-stable-id-001",
+            "source_event_id": "sub-id-123",
+            "timestamp": "2026-10-25T15:00:00Z",
+            "event_type": "authentication",
+        },
+    }
+    event = EventNormalizer.normalize_single(raw)
+    assert event.event_id == "explicit-stable-id-001"
+
+
+def test_event_identity_precedence_tier2_elasticsearch_scoped_id():
+    """Tier 2: ES _id scoped by index or source when event_id is absent."""
+    raw = {
+        "_index": "corp-audit",
+        "_id": "doc-554433",
+        "_source": {
+            "source_event_id": "legacy-record-44",
+            "timestamp": "2026-10-25T15:00:00Z",
+            "event_type": "network",
+        },
+    }
+    event = EventNormalizer.normalize_single(raw)
+    assert event.event_id == "corp-audit:doc-554433"
+
+
+def test_event_identity_precedence_tier3_deterministic_source_identity():
+    """Tier 3: Documented source identity (source_event_id, record_id, id, log_id) produces idempotent ID."""
+    raw1 = {
+        "source_event_id": "evt-win-4624",
+        "timestamp": "2026-10-25T15:00:00Z",
+        "event_type": "auth",
+        "user": "alice",
+    }
+    event1a = EventNormalizer.normalize_single(raw1, default_source="winevent")
+    event1b = EventNormalizer.normalize_single(raw1, default_source="winevent")
+    assert event1a.event_id == "winevent:evt-win-4624"
+    assert event1a.event_id == event1b.event_id  # Idempotent across retries
+
+    raw2 = {
+        "record_id": 98765,
+        "timestamp": "2026-10-25T15:00:00Z",
+        "event_type": "firewall",
+    }
+    event2 = EventNormalizer.normalize_single(raw2, default_source="paloalto")
+    assert event2.event_id == "paloalto:98765"
+
+
+def test_event_identity_precedence_tier4_generated_uuid():
+    """Tier 4: Generated UUID fallback when no stable identifier exists.
+
+    Limitation: UUID generation cannot guarantee deduplication across retries.
+    Content hash is NOT used as event_id so identical payloads do not collide.
+    """
+    raw = {
+        "timestamp": "2026-10-25T15:00:00Z",
+        "event_type": "raw_telemetry",
+        "details": "heartbeat",
+    }
+    event_a = EventNormalizer.normalize_single(raw, default_source="sensor")
+    event_b = EventNormalizer.normalize_single(raw, default_source="sensor")
+
+    assert event_a.event_id.startswith("gen-")
+    assert event_b.event_id.startswith("gen-")
+    # Two separate normalization passes of identical payload without ID produce unique IDs
+    assert event_a.event_id != event_b.event_id
+
 
 
 def test_normalize_direct_dictionary_with_legacy_username():

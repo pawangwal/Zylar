@@ -4,6 +4,7 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from zylar.core.settings import get_settings
 from zylar.domain.events import EventNormalizer, NormalizedEvent
 
 
@@ -15,7 +16,7 @@ class WorkflowRequest(BaseModel):
     events: list[NormalizedEvent] = Field(
         ...,
         min_length=1,
-        max_length=1000,
+        max_length=get_settings().max_batch_size,
         description="Bounded list of normalized security events",
     )
     allow_duplicate_ids: bool = Field(
@@ -27,16 +28,25 @@ class WorkflowRequest(BaseModel):
     @classmethod
     def preprocess_raw_events(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            # If "logs" was sent instead of "events", support for backward compatibility
-            raw_list = data.get("events") if "events" in data else data.get("logs")
+            data = dict(data)
+            # If "logs" was sent instead of "events", support for backward compatibility and remove "logs" key
+            raw_list = data.get("events")
+            if raw_list is None and "logs" in data:
+                raw_list = data.pop("logs")
+
             if isinstance(raw_list, list):
+                max_batch = get_settings().max_batch_size
+                if len(raw_list) > max_batch:
+                    raise ValueError(
+                        f"Event batch size exceeds maximum limit of {max_batch} events (got {len(raw_list)})"
+                    )
+
                 normalized = []
                 for item in raw_list:
                     if isinstance(item, NormalizedEvent):
                         normalized.append(item)
                     else:
                         normalized.append(EventNormalizer.normalize_single(item))
-                data = dict(data)
                 data["events"] = normalized
         return data
 

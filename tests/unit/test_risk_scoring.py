@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from agents.risk_agent import calculate_risk_node
 
 
@@ -59,9 +61,6 @@ def test_calculate_risk_canonical_user_propagation():
     result = calculate_risk_node(state)
     assert "risk_score" in result
     assert "historical_recurrence" in result
-
-
-from unittest.mock import patch
 
 
 def test_calculate_risk_score_reproducibility():

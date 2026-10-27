@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
+
 import pytest
 from pydantic import ValidationError
 
 from zylar.domain.events import NormalizedEvent, compute_raw_event_hash
+from zylar.domain.responses import ErrorResponse, HealthResponse, IncidentResponse
 from zylar.domain.workflow import WorkflowRequest
-from zylar.domain.responses import IncidentResponse, HealthResponse, ErrorResponse
 
 
 def test_valid_normalized_event():
@@ -23,7 +24,7 @@ def test_valid_normalized_event():
     )
 
     assert event.event_id == "evt-001"
-    assert event.timestamp == datetime(2026, 10, 25, 14, 30, 0, tzinfo=timezone.utc)
+    assert event.timestamp == datetime(2026, 10, 25, 14, 30, 0, tzinfo=UTC)
     assert event.event_type == "authentication"
     assert event.source_ip == "192.168.1.50"
     assert event.user == "analyst_alice"
@@ -39,7 +40,7 @@ def test_timestamp_with_offset_normalizes_to_utc():
         event_type="web_access",
         source="nginx",
     )
-    assert event.timestamp == datetime(2026, 10, 25, 12, 0, 0, tzinfo=timezone.utc)
+    assert event.timestamp == datetime(2026, 10, 25, 12, 0, 0, tzinfo=UTC)
 
 
 def test_timestamp_naive_string_rejected():
@@ -190,6 +191,66 @@ def test_workflow_request_duplicate_event_id_policy():
     # Explicit policy toggle: allow duplicates
     req = WorkflowRequest(events=[ev1, ev2], allow_duplicate_ids=True)
     assert len(req.events) == 2
+
+
+def test_workflow_request_accepts_exactly_500_events():
+    events = [
+        NormalizedEvent(
+            event_id=f"batch-{i:04d}",
+            timestamp="2026-10-25T14:00:00Z",
+            event_type="network",
+        )
+        for i in range(500)
+    ]
+    req = WorkflowRequest(events=events)
+    assert len(req.events) == 500
+
+
+def test_workflow_request_rejects_501_events():
+    events = [
+        NormalizedEvent(
+            event_id=f"batch-{i:04d}",
+            timestamp="2026-10-25T14:00:00Z",
+            event_type="network",
+        )
+        for i in range(501)
+    ]
+    with pytest.raises(ValidationError) as exc:
+        WorkflowRequest(events=events)
+    assert "List should have at most 500 items" in str(exc.value) or "exceeds maximum limit" in str(exc.value)
+
+
+def test_workflow_request_rejects_501_raw_logs():
+    raw_logs = [
+        {
+            "event_id": f"raw-{i:04d}",
+            "timestamp": "2026-10-25T14:00:00Z",
+            "event_type": "network",
+        }
+        for i in range(501)
+    ]
+    with pytest.raises(ValidationError) as exc:
+        WorkflowRequest.model_validate({"logs": raw_logs})
+    assert "500" in str(exc.value)
+
+
+def test_workflow_request_rejects_malformed_event_in_batch():
+    raw_logs = [
+        {
+            "event_id": "good-01",
+            "timestamp": "2026-10-25T14:00:00Z",
+            "event_type": "network",
+        },
+        {
+            "event_id": "bad-01",
+            "timestamp": "invalid-timestamp",
+            "event_type": "network",
+        },
+    ]
+    with pytest.raises(ValidationError) as exc:
+        WorkflowRequest.model_validate({"events": raw_logs})
+    assert "Malformed ISO timestamp" in str(exc.value)
+
 
 
 def test_response_models():

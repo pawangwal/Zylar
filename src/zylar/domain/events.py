@@ -4,6 +4,7 @@ import hashlib
 import ipaddress
 import json
 import re
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
@@ -154,8 +155,14 @@ class EventNormalizer:
     ) -> NormalizedEvent:
         """Normalizes a single log record.
 
-        Extracts Elasticsearch `_source` documents if present, falls back to `_id`
-        for event_id if not present in `_source`, and applies canonical field mapping.
+        Resolves event identity using strict 4-tier precedence:
+        1. Stable source event ID, when available.
+        2. Elasticsearch `_id`, scoped by index or source.
+        3. Deterministic ID derived from a documented source identity (e.g. source_event_id, record_id, id, log_id).
+        4. Generated UUID only when the source provides no stable identity.
+           LIMITATION: Generated UUIDs cannot guarantee deduplication or idempotency
+           across retries. Content hashes are deliberately avoided as event IDs because
+           two distinct legitimate events can have identical payloads.
         """
         if isinstance(raw_log, NormalizedEvent):
             return raw_log
@@ -170,21 +177,82 @@ class EventNormalizer:
         else:
             normalized_dict = dict(raw_log)
 
-        # Preserve / resolve event_id from Elasticsearch document _id fallback
-        if not normalized_dict.get("event_id"):
-            if raw_log.get("_id"):
-                normalized_dict["event_id"] = str(raw_log["_id"])
-            else:
-                # Documented fallback for raw sources that lack an event_id
-                normalized_dict["event_id"] = f"synth-{compute_raw_event_hash(raw_log)[:16]}"
+        # Determine canonical source scope
+        source_scope = str(raw_log.get("_index") or normalized_dict.get("source") or default_source).strip()
 
-        # Preserve / resolve source metadata from Elasticsearch index or default
+        # -----------------------------------------------------------------
+        # Event Identity Precedence
+        # -----------------------------------------------------------------
+        # 1. Stable source event ID, when available
+        stable_event_id = normalized_dict.get("event_id") or raw_log.get("event_id")
+        if stable_event_id is not None and str(stable_event_id).strip():
+            normalized_dict["event_id"] = str(stable_event_id).strip()
+
+        # 2. Elasticsearch _id, scoped by index or source
+        elif raw_log.get("_id") is not None and str(raw_log.get("_id")).strip():
+            es_id = str(raw_log["_id"]).strip()
+            if es_id.startswith(f"{source_scope}:"):
+                normalized_dict["event_id"] = es_id
+            else:
+                normalized_dict["event_id"] = f"{source_scope}:{es_id}"
+
+        # 3. Deterministic ID derived from a documented source identity
+        else:
+            documented_id = None
+            for key in ("source_event_id", "record_id", "id", "log_id"):
+                candidate = normalized_dict.get(key)
+                if candidate is None and isinstance(raw_log, dict):
+                    candidate = raw_log.get(key)
+                if candidate is not None and str(candidate).strip():
+                    documented_id = str(candidate).strip()
+                    break
+
+            if documented_id is not None:
+                if documented_id.startswith(f"{source_scope}:"):
+                    normalized_dict["event_id"] = documented_id
+                else:
+                    normalized_dict["event_id"] = f"{source_scope}:{documented_id}"
+
+            # 4. Generated UUID only when the source provides no stable identity.
+            # Limitation: Cannot guarantee deduplication across retries.
+            # Content hash is not used as event_id to prevent collision of distinct events.
+            else:
+                normalized_dict["event_id"] = f"gen-{uuid.uuid4().hex}"
+
+        # Ensure source is populated
         if not normalized_dict.get("source"):
-            normalized_dict["source"] = raw_log.get("_index", default_source)
+            normalized_dict["source"] = source_scope
 
         # Retain raw event hash computed from the outer payload if absent
         if not normalized_dict.get("raw_event_hash"):
             normalized_dict["raw_event_hash"] = compute_raw_event_hash(raw_log)
+
+        # Legacy compatibility: map username -> user if user is missing
+        if "user" not in normalized_dict and "username" in normalized_dict:
+            normalized_dict["user"] = normalized_dict.pop("username")
+
+        # Strip internal and documented source identity keys that are not part of NormalizedEvent
+        for non_model_key in (
+            "source_event_id",
+            "record_id",
+            "id",
+            "log_id",
+            "_id",
+            "_index",
+            "_type",
+            "_score",
+        ):
+            normalized_dict.pop(non_model_key, None)
+
+        # If extra unknown fields remain, pack them into details if details is empty, then remove
+        allowed_fields = set(NormalizedEvent.model_fields.keys())
+        extra_keys = set(normalized_dict.keys()) - allowed_fields
+        if extra_keys:
+            if not normalized_dict.get("details"):
+                extra_payload = {k: normalized_dict[k] for k in sorted(extra_keys)}
+                normalized_dict["details"] = json.dumps(extra_payload, default=str)[:2048]
+            for k in extra_keys:
+                normalized_dict.pop(k, None)
 
         return NormalizedEvent.model_validate(normalized_dict)
 

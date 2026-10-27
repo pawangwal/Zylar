@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from agents.correlation_agent import (
-    MAX_GRAPH_NODES,
     build_threat_correlation_graph_node,
 )
 

@@ -13,6 +13,7 @@ from agents.anomaly_agent import detect_anomalies_node
 from memory.sqlite_manager import get_top_offenders
 from zylar.core.logging import configure_logging
 from zylar.core.settings import get_settings
+from zylar.domain.workflow import WorkflowRequest
 
 settings = get_settings()
 configure_logging(settings)
@@ -23,16 +24,13 @@ ES_HOST = str(settings.elasticsearch_url).rstrip("/")
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "reports")
 
 
-class RunWorkflowRequest(BaseModel):
-    logs: List[Dict[str, Any]]
-
-
 @app.post("/api/workflow/run")
-async def run_workflow(req: RunWorkflowRequest):
-    """Triggers the full agentic workflow on a set of logs."""
+async def run_workflow(req: WorkflowRequest):
+    """Triggers the full agentic workflow on a bounded set of normalized events."""
     try:
         graph = build_workflow()
-        final_state = graph.invoke({"raw_logs": req.logs})
+        raw_logs = [ev.model_dump(mode="json") for ev in req.events]
+        final_state = graph.invoke({"raw_logs": raw_logs})
 
         return {
             "incident_id": final_state.get("incident_id"),
