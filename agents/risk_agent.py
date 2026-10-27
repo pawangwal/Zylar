@@ -1,11 +1,29 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
+
 from agents.state import AgentState
-from memory.sqlite_manager import get_historical_recurrence_factor, update_entity_history
+from zylar.persistence.database import get_session
+from zylar.persistence.repositories import OffenderHistoryRepository
 
 
-def calculate_risk_node(state: AgentState) -> Dict[str, Any]:
+def get_historical_recurrence_factor(ips: list[str], users: list[str]) -> int:
+    """Queries entity recurrence penalty factor (0-100) from PostgreSQL."""
+    with get_session() as session:
+        repo = OffenderHistoryRepository(session)
+        return repo.get_recurrence_factor(ips, users)
+
+
+def update_entity_history(ips: list[str], users: list[str], risk_score: int) -> None:
+    """Deprecated compatibility stub.
+
+    Entity recurrence updates are now transactionally coordinated within
+    UnitOfWork.persist_incident_lifecycle to prevent double-counting.
+    """
+    pass
+
+
+def calculate_risk_node(state: AgentState) -> dict[str, Any]:
     """Calculates risk score based on multi-factor weighted heuristics and canonical inputs."""
     classification = state.get("attack_classification", "None")
     anomalies = state.get("anomalies", [])
@@ -31,7 +49,7 @@ def calculate_risk_node(state: AgentState) -> Dict[str, Any]:
     # Factor 2: Anomaly Confidence (0-100 proxy using volume)
     anomaly_confidence = min(100, len(anomalies) * 5)
 
-    # Factor 3: Historical Recurrence (0-100 from memory) using canonical entity identities
+    # Factor 3: Historical Recurrence (0-100 from PostgreSQL) using canonical entity identities
     ips = sorted({str(a["source_ip"]) for a in anomalies if a.get("source_ip")})
     users = sorted({str(a.get("user") or a.get("username")) for a in anomalies if (a.get("user") or a.get("username"))})
     historical_recurrence = get_historical_recurrence_factor(ips, users)
@@ -67,12 +85,11 @@ def calculate_risk_node(state: AgentState) -> Dict[str, Any]:
     else:
         category = "Low"
 
-    # Update SQLite Memory with this latest offense
-    update_entity_history(ips, users, final_score)
-
     return {
         "risk_score": final_score,
         "risk_category": category,
         "historical_recurrence": historical_recurrence,
         "asset_criticality": asset_criticality,
+        "contributing_ips": ips,
+        "contributing_users": users,
     }

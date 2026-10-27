@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sqlite3
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -20,7 +19,6 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, s
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from memory.sqlite_manager import DB_PATH, get_top_offenders
 from orchestrator.workflow_graph import build_workflow
 from pydantic import BaseModel, Field
 
@@ -35,6 +33,8 @@ from zylar.core.security import (
 )
 from zylar.core.settings import get_settings
 from zylar.domain.workflow import WorkflowRequest
+from zylar.persistence.database import DatabaseManager, get_session
+from zylar.persistence.repositories import OffenderHistoryRepository
 
 settings = get_settings()
 configure_logging(settings)
@@ -231,22 +231,21 @@ async def health_ready(response: Response) -> dict[str, Any]:
         checks["elasticsearch"] = "unhealthy"
         is_ready = False
 
-    # 2. Check SQLite memory database
+    # 2. Check Database connectivity (PostgreSQL)
     try:
-        def check_sqlite() -> bool:
-            with sqlite3.connect(DB_PATH, timeout=2.0) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT 1")
-                row = cursor.fetchone()
-                return row is not None
+        def check_db() -> bool:
+            return DatabaseManager(settings).check_connection()
 
-        sqlite_ok = await anyio.to_thread.run_sync(check_sqlite)
-        if sqlite_ok:
-            checks["sqlite"] = "healthy"
+        db_ok = await anyio.to_thread.run_sync(check_db)
+        if db_ok:
+            checks["database"] = "healthy"
+            checks["sqlite"] = "healthy"  # Deprecated alias preserved for monitoring contracts
         else:
+            checks["database"] = "unhealthy"
             checks["sqlite"] = "unhealthy"
             is_ready = False
     except Exception:
+        checks["database"] = "unhealthy"
         checks["sqlite"] = "unhealthy"
         is_ready = False
 
@@ -281,6 +280,7 @@ async def health_ready(response: Response) -> dict[str, Any]:
 @app.post("/api/workflow/run")
 async def run_workflow(
     req: WorkflowRequest,
+    request: Request,
     current_user: Annotated[UserPrincipal, Depends(require_roles(Role.ANALYST, Role.ADMIN))],
 ) -> dict[str, Any]:
     """Triggers the full agentic workflow on a bounded set of normalized events."""
@@ -297,12 +297,18 @@ async def run_workflow(
             "risk_category": final_state.get("risk_category"),
             "mitigation_plan": final_state.get("mitigation_plan"),
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception as exc:
+        corr_id = getattr(request.state, "correlation_id", "unknown")
+        logger.exception("Workflow execution error [%s]: %s", corr_id, type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Workflow execution failed due to an internal processing error.",
+        ) from exc
 
 
 @app.get("/api/logs/recent")
 async def get_recent_logs(
+    request: Request,
     current_user: Annotated[UserPrincipal, Depends(get_current_user)],
     minutes: Annotated[int, Query(ge=1, le=1440)] = 5,
 ) -> dict[str, Any]:
@@ -324,12 +330,18 @@ async def get_recent_logs(
             lambda: es.search(index=settings.elasticsearch_index, body=query)
         )
         return {"logs": [hit["_source"] for hit in res["hits"]["hits"]]}
-    except Exception as e:
-        return {"error": str(e), "logs": []}
+    except Exception as exc:
+        corr_id = getattr(request.state, "correlation_id", "unknown")
+        logger.exception("Failed to query recent logs [%s]: %s", corr_id, type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to retrieve recent logs from search backend.",
+        ) from exc
 
 
 @app.get("/api/reports")
 async def get_reports(
+    request: Request,
     current_user: Annotated[UserPrincipal, Depends(get_current_user)],
 ) -> dict[str, Any]:
     """Fetches generated incident reports for authenticated users."""
@@ -338,7 +350,7 @@ async def get_reports(
         if os.path.exists(REPORTS_DIR):
             for file in os.listdir(REPORTS_DIR):
                 if file.endswith(".json"):
-                    with open(os.path.join(REPORTS_DIR, file)) as f:
+                    with open(os.path.join(REPORTS_DIR, file), encoding="utf-8") as f:
                         try:
                             loaded.append(json.load(f))
                         except Exception:
@@ -346,19 +358,40 @@ async def get_reports(
         loaded.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
         return loaded
 
-    reports = await anyio.to_thread.run_sync(read_reports)
-    return {"reports": reports}
+    try:
+        reports = await anyio.to_thread.run_sync(read_reports)
+        return {"reports": reports}
+    except Exception as exc:
+        corr_id = getattr(request.state, "correlation_id", "unknown")
+        logger.exception("Failed to read reports [%s]: %s", corr_id, type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve incident reports.",
+        ) from exc
+
+
+def get_top_offenders(limit: int = 5) -> dict[str, list[dict[str, Any]]]:
+    """Retrieves top offending IPs and users from PostgreSQL storage."""
+    with get_session() as session:
+        repo = OffenderHistoryRepository(session)
+        return repo.get_top_offenders(limit)
 
 
 @app.get("/api/offenders")
 async def get_offenders(
+    request: Request,
     current_user: Annotated[UserPrincipal, Depends(get_current_user)],
     limit: Annotated[int, Query(ge=1, le=100)] = 5,
 ) -> dict[str, Any]:
-    """Fetches top offenders from SQLite memory for authenticated users."""
+    """Fetches top offenders from persistent storage for authenticated users."""
     try:
         data = await anyio.to_thread.run_sync(get_top_offenders, limit)
         return {"status": "success", "data": data}
-    except Exception as e:
-        logger.error("Error fetching offenders: %s", e)
-        return {"status": "error", "data": {"top_ips": [], "top_users": []}}
+    except Exception as exc:
+        corr_id = getattr(request.state, "correlation_id", "unknown")
+        logger.exception("Failed to fetch offenders [%s]: %s", corr_id, type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to retrieve offender statistics from storage backend.",
+        ) from exc
+

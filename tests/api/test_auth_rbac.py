@@ -148,3 +148,60 @@ def test_request_correlation_id_propagated():
     generated_id = res_auto.headers.get("X-Correlation-ID")
     assert generated_id is not None
     assert generated_id.startswith("req-")
+
+
+def test_exception_redaction_on_workflow_failure():
+    analyst_token = create_access_token("analyst_test", Role.ANALYST)
+    payload = {
+        "events": [
+            {
+                "event_id": "test-1",
+                "timestamp": "2026-10-25T14:00:00Z",
+                "event_type": "network",
+                "source_ip": "10.0.0.1",
+            }
+        ]
+    }
+    with patch("api.main.build_workflow") as mock_wf:
+        mock_wf.side_effect = RuntimeError("sensitive_internal_connection_failure_host_secret_db")
+        res = client.post(
+            "/api/workflow/run",
+            json=payload,
+            headers={"Authorization": f"Bearer {analyst_token}", "X-Correlation-ID": "test-redact-corr"},
+        )
+    assert res.status_code == 500
+    data = res.json()
+    assert "error" in data
+    # Sensitive internal error must be completely redacted from the client response
+    assert "sensitive_internal_connection_failure_host_secret_db" not in data["error"]
+    assert data["error"] == "Workflow execution failed due to an internal processing error."
+    assert data["correlation_id"] == "test-redact-corr"
+
+
+def test_exception_redaction_on_logs_failure():
+    viewer_token = create_access_token("viewer_test", Role.VIEWER)
+    with patch("api.main.Elasticsearch") as mock_es:
+        mock_es.return_value.search.side_effect = ConnectionError("internal_es_failed_on_private_port_9200")
+        res = client.get(
+            "/api/logs/recent",
+            headers={"Authorization": f"Bearer {viewer_token}", "X-Correlation-ID": "test-es-fail"},
+        )
+    assert res.status_code == 502
+    data = res.json()
+    assert "internal_es_failed_on_private_port_9200" not in data["error"]
+    assert data["error"] == "Failed to retrieve recent logs from search backend."
+    assert data["correlation_id"] == "test-es-fail"
+
+
+def test_exception_redaction_on_offenders_failure():
+    viewer_token = create_access_token("viewer_test", Role.VIEWER)
+    with patch("api.main.get_top_offenders", side_effect=Exception("sqlite_table_locked_on_disk")):
+        res = client.get(
+            "/api/offenders",
+            headers={"Authorization": f"Bearer {viewer_token}", "X-Correlation-ID": "test-sqlite-fail"},
+        )
+    assert res.status_code == 502
+    data = res.json()
+    assert "sqlite_table_locked_on_disk" not in data["error"]
+    assert data["error"] == "Failed to retrieve offender statistics from storage backend."
+    assert data["correlation_id"] == "test-sqlite-fail"

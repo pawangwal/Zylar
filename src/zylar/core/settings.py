@@ -2,11 +2,34 @@
 
 from __future__ import annotations
 
+import urllib.parse
 from functools import lru_cache
 from typing import Literal, cast
 
 from pydantic import AnyHttpUrl, Field, PositiveInt, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+KNOWN_PLACEHOLDER_KEYS: frozenset[str] = frozenset({
+    "replace-with-a-long-random-secret",
+    "secret",
+    "changeme",
+    "default",
+    "jwt-secret",
+    "replace-me",
+})
+
+KNOWN_PLACEHOLDER_PASSWORDS: frozenset[str] = frozenset({
+    "change-admin-password-in-production",
+    "change-me",
+    "changeme",
+    "password",
+    "admin",
+    "root",
+    "secret",
+    "replace-me",
+    "123456",
+    "test",
+})
 
 
 class Settings(BaseSettings):
@@ -34,6 +57,11 @@ class Settings(BaseSettings):
     elasticsearch_url: AnyHttpUrl = cast(AnyHttpUrl, "http://127.0.0.1:9200")
     elasticsearch_index: str = Field(default="zylar-logs", min_length=1, max_length=255)
     database_url: str = "postgresql+psycopg://zylar:change-me@127.0.0.1:5432/zylar"
+    db_pool_size: PositiveInt = 10
+    db_max_overflow: int = Field(default=20, ge=0)
+    db_pool_timeout_seconds: PositiveInt = 30
+    db_pool_recycle_seconds: PositiveInt = 1800
+    db_pool_pre_ping: bool = True
     ollama_url: AnyHttpUrl = cast(AnyHttpUrl, "http://127.0.0.1:11434")
     ollama_model: str = Field(default="mistral", min_length=1, max_length=128)
     auth_signing_key: SecretStr = SecretStr("replace-with-a-long-random-secret")
@@ -41,25 +69,76 @@ class Settings(BaseSettings):
     bootstrap_admin_password: SecretStr = SecretStr("change-admin-password-in-production")
     token_expire_minutes: PositiveInt = 60
 
+    @property
+    def redacted_database_url(self) -> str:
+        """Returns the database URL with the password masked for safe diagnostic logging."""
+        try:
+            parsed = urllib.parse.urlsplit(self.database_url)
+            if parsed.password:
+                user = parsed.username or ""
+                host = parsed.hostname or ""
+                port_str = f":{parsed.port}" if parsed.port else ""
+                netloc = f"{user}:***@{host}{port_str}"
+                return urllib.parse.urlunsplit(
+                    (parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment)
+                )
+            return self.database_url
+        except Exception:
+            return "[redacted-database-url]"
+
     @model_validator(mode="after")
     def validate_production_secrets(self) -> Settings:
         """Enforces that production deployments do not use placeholder or weak secrets."""
         if self.environment == "production":
-            key_val = self.auth_signing_key.get_secret_value()
-            if key_val in ("replace-with-a-long-random-secret", "") or len(key_val) < 32:
+            key_val = self.auth_signing_key.get_secret_value().strip()
+            if key_val in KNOWN_PLACEHOLDER_KEYS or len(key_val) < 32:
                 raise ValueError(
                     "In production, ZYLAR_AUTH_SIGNING_KEY must be a cryptographically strong "
                     "secret at least 32 characters long."
                 )
-            pwd_val = self.bootstrap_admin_password.get_secret_value()
-            if pwd_val in ("change-admin-password-in-production", "") or len(pwd_val) < 12:
+            pwd_val = self.bootstrap_admin_password.get_secret_value().strip()
+            if pwd_val in KNOWN_PLACEHOLDER_PASSWORDS or len(pwd_val) < 12:
                 raise ValueError(
                     "In production, ZYLAR_BOOTSTRAP_ADMIN_PASSWORD must be changed from the "
                     "default placeholder and be at least 12 characters long."
                 )
-            if "change-me" in self.database_url:
+
+            try:
+                parsed = urllib.parse.urlsplit(self.database_url)
+            except Exception as exc:
                 raise ValueError(
-                    "In production, ZYLAR_DATABASE_URL must not contain placeholder credentials ('change-me')."
+                    "In production, ZYLAR_DATABASE_URL is not a valid RFC-3986 URL."
+                ) from exc
+
+            scheme = parsed.scheme.lower()
+            if not (scheme == "postgresql" or scheme.startswith("postgresql+")):
+                raise ValueError(
+                    "In production, ZYLAR_DATABASE_URL must use a PostgreSQL scheme (e.g., postgresql+psycopg://)."
+                )
+
+            if not parsed.hostname:
+                raise ValueError(
+                    "In production, ZYLAR_DATABASE_URL must specify a database host."
+                )
+
+            if not parsed.username or parsed.username.strip() in KNOWN_PLACEHOLDER_PASSWORDS:
+                raise ValueError(
+                    "In production, ZYLAR_DATABASE_URL must specify a non-empty, non-placeholder username."
+                )
+
+            if not parsed.password:
+                raise ValueError(
+                    "In production, ZYLAR_DATABASE_URL must specify a non-empty database password."
+                )
+
+            raw_db_password = urllib.parse.unquote(parsed.password).strip()
+            if raw_db_password in KNOWN_PLACEHOLDER_PASSWORDS:
+                raise ValueError(
+                    "In production, ZYLAR_DATABASE_URL password must not use a known placeholder value."
+                )
+            if len(raw_db_password) < 8:
+                raise ValueError(
+                    "In production, ZYLAR_DATABASE_URL password must be at least 8 characters long."
                 )
         return self
 

@@ -11,6 +11,7 @@ requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Zylar contributors" }]
 dependencies = [
+  "alembic==1.15.1",
   "apscheduler==3.11.3",
   "bcrypt==5.0.0",
   "elasticsearch==8.19.3",
@@ -22,11 +23,13 @@ dependencies = [
   "numpy==2.5.4",
   "ollama==0.6.3",
   "pandas==2.3.3",
+  "psycopg[binary]==3.2.5",
   "pydantic==2.14.1",
   "pydantic-settings==2.16.1",
   "pyjwt==2.15.1",
   "requests==2.34.2",
   "scikit-learn==1.9.1",
+  "sqlalchemy==2.0.40",
   "streamlit==1.66.1",
   "streamlit-autorefresh==1.0.1",
   "uvicorn[standard]==0.54.0",
@@ -47,6 +50,7 @@ packages = ["src/zylar"]
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+pythonpath = ["src", "."]
 addopts = "-ra --strict-markers --cov=zylar --cov-report=term-missing --cov-report=xml"
 
 [tool.coverage.run]

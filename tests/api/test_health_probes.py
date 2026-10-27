@@ -20,12 +20,14 @@ def test_health_ready_probe_all_healthy():
     with (
         patch("elasticsearch.Elasticsearch.ping", return_value=True),
         patch("ollama.Client.list", return_value=[]),
+        patch("zylar.persistence.database.DatabaseManager.check_connection", return_value=True),
     ):
         response = client.get("/health/ready")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ready"
         assert data["checks"]["elasticsearch"] == "healthy"
+        assert data["checks"]["database"] == "healthy"
         assert data["checks"]["sqlite"] == "healthy"
         assert data["checks"]["ollama"] == "healthy"
 
@@ -35,12 +37,14 @@ def test_health_ready_probe_ollama_degraded():
     with (
         patch("elasticsearch.Elasticsearch.ping", return_value=True),
         patch("ollama.Client.list", side_effect=ConnectionRefusedError("Ollama offline")),
+        patch("zylar.persistence.database.DatabaseManager.check_connection", return_value=True),
     ):
         response = client.get("/health/ready")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "degraded"
         assert data["checks"]["elasticsearch"] == "healthy"
+        assert data["checks"]["database"] == "healthy"
         assert data["checks"]["sqlite"] == "healthy"
         assert data["checks"]["ollama"] == "degraded"
 
@@ -53,6 +57,19 @@ def test_health_ready_probe_elasticsearch_down_returns_503():
         data = response.json()
         assert data["status"] == "unhealthy"
         assert data["checks"]["elasticsearch"] == "unhealthy"
+
+
+def test_health_ready_probe_database_down_returns_503():
+    """Database critical dependency failure returns HTTP 503."""
+    with (
+        patch("elasticsearch.Elasticsearch.ping", return_value=True),
+        patch("zylar.persistence.database.DatabaseManager.check_connection", return_value=False),
+    ):
+        response = client.get("/health/ready")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "unhealthy"
+        assert data["checks"]["database"] == "unhealthy"
 
 
 def test_health_endpoints_do_not_leak_secrets_or_internals():

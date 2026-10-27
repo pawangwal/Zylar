@@ -1,7 +1,7 @@
 import sqlite3
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "zylar_memory.db")
@@ -67,12 +67,13 @@ def log_incident(incident_data: Dict[str, Any]):
     cursor = conn.cursor()
     
     try:
+        now_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         cursor.execute('''
             INSERT INTO incidents (incident_id, timestamp, attack_classification, risk_score, risk_category, mitigation_plan, threat_intel, anomalous_events_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             incident_data.get("incident_id"),
-            incident_data.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+            incident_data.get("timestamp", now_ts),
             incident_data.get("attack_classification"),
             incident_data.get("risk_score"),
             incident_data.get("risk_category"),
@@ -86,7 +87,7 @@ def log_incident(incident_data: Dict[str, Any]):
             INSERT INTO risk_history (timestamp, incident_id, risk_score)
             VALUES (?, ?, ?)
         ''', (
-            incident_data.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+            incident_data.get("timestamp", now_ts),
             incident_data.get("incident_id"),
             incident_data.get("risk_score")
         ))
@@ -102,7 +103,7 @@ def update_entity_history(ips: List[str], users: List[str], risk_score: int):
     """Updates the offense count and last seen time for IPs and Users."""
     conn = get_connection()
     cursor = conn.cursor()
-    now_str = datetime.utcnow().isoformat() + "Z"
+    now_str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     
     for ip in ips:
         cursor.execute("SELECT offense_count FROM ip_history WHERE ip_address=?", (ip,))
@@ -177,9 +178,7 @@ def get_top_offenders(limit: int = 5) -> Dict[str, List[Dict]]:
     conn.close()
     return {"top_ips": ips, "top_users": users}
 
-# Initialize DB on load
-if not os.path.exists(DB_PATH):
-    init_db()
-else:
-    # Ensure tables exist even if file exists
-    init_db()
+
+# Deprecated in Phase 4.4: Persistence migrated to PostgreSQL via zylar.persistence.
+# Automatic database initialization on import is disabled.
+
