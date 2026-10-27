@@ -38,7 +38,7 @@ ZYLAR v2 follows a 6-layer architecture:
 ## ⚙️ Installation Guide (Local Deployment)
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.12+
 - Docker & Docker Compose (For ELK)
 - [Ollama](https://ollama.com) installed and running locally.
 

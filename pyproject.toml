@@ -7,7 +7,7 @@ name = "zylar"
 version = "0.1.0"
 description = "Local AI-assisted security operations centre prototype"
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Zylar contributors" }]
 dependencies = [
@@ -58,7 +58,7 @@ fail_under = 0
 show_missing = true
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
 
@@ -67,7 +67,7 @@ select = ["E", "F", "I", "UP", "B"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 files = ["src/zylar"]
 warn_unused_configs = true
 warn_redundant_casts = true
@@ -78,5 +78,5 @@ check_untyped_defs = true
 
 [tool.pyright]
 include = ["src/zylar"]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 typeCheckingMode = "basic"
