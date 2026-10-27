@@ -5,7 +5,10 @@ from unittest.mock import MagicMock, patch
 from api.main import app
 from fastapi.testclient import TestClient
 
+from zylar.core.security import Role, create_access_token
+
 client = TestClient(app)
+auth_headers = {"Authorization": f"Bearer {create_access_token('boundary_analyst', Role.ANALYST)}"}
 
 
 def test_api_workflow_run_rejects_501_events():
@@ -19,7 +22,7 @@ def test_api_workflow_run_rejects_501_events():
         for i in range(501)
     ]
 
-    response = client.post("/api/workflow/run", json={"events": events})
+    response = client.post("/api/workflow/run", json={"events": events}, headers=auth_headers)
     assert response.status_code == 422
     assert "500" in response.text or "at most 500" in response.text
 
@@ -35,7 +38,7 @@ def test_api_workflow_run_rejects_malformed_event():
             }
         ]
     }
-    response = client.post("/api/workflow/run", json=bad_payload)
+    response = client.post("/api/workflow/run", json=bad_payload, headers=auth_headers)
     assert response.status_code == 422
     assert "Malformed ISO timestamp" in response.text
 
@@ -56,7 +59,7 @@ def test_api_workflow_run_rejects_duplicate_ids():
             },
         ]
     }
-    response = client.post("/api/workflow/run", json=dup_payload)
+    response = client.post("/api/workflow/run", json=dup_payload, headers=auth_headers)
     assert response.status_code == 422
     assert "Duplicate event IDs found" in response.text
 
@@ -75,7 +78,7 @@ def test_api_workflow_run_accepts_bounded_batch():
 
     with patch("agents.classifier_agent.ChatOpenAI") as mock_chat:
         mock_chat.return_value.invoke.return_value = MagicMock(content="None")
-        response = client.post("/api/workflow/run", json={"events": events})
+        response = client.post("/api/workflow/run", json={"events": events}, headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
