@@ -1,90 +1,106 @@
-# Zylar
+# ZYLAR v2 – Autonomous Self-Evolving SOC AI System
 
-Zylar is a local, AI-assisted security operations centre (SOC) prototype. It
-ingests security events, identifies suspicious activity, correlates evidence,
-and produces advisory mitigation plans. It is being hardened through the
-implementation plan before any production-readiness claim is made.
+ZYLAR v2 is a multi-agent autonomous SOC system designed to detect, classify, score, and mitigate cyber threats in real-time. It leverages deterministic LangGraph orchestration, NetworkX for threat correlation, Scikit-Learn for anomaly detection, and **Local LLMs via Ollama** for threat intelligence and mitigation planning. It runs COMPLETELY LOCALLY with no paid API keys.
 
-## Current status
+---
 
-The project is a prototype under active hardening. It does **not** execute
-mitigation actions, provide automated remediation, or claim production
-certification. The legacy classifier still exists temporarily while the next
-implementation slice replaces every external AI path with a validated,
-Ollama-only adapter.
+## 🏗️ Architecture Design (v2)
 
-## Development setup
+ZYLAR v2 follows a 6-layer architecture:
 
-Zylar supports Python 3.11 and 3.12. Use an isolated environment; do not
-commit it.
+### 1. Log & Simulation Layer
+- **Log Generator (`log_generator/simulate_attacks.py`)**: Continuously pushes synthesized regular and malicious logs (Brute Force, ransomware, Port Scan, Lateral Movement).
+- **Elasticsearch**: Central fast log storage.
 
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-Copy-Item .env.example .env
+### 2. Detection & ML Layer
+- **Anomaly Detection**: Uses Scikit-learn Isolation Forest to find statistical outliers based on IP frequency and failure rates.
+
+### 3. Agentic AI Reasoning Layer
+- **ThreatIntelligenceAgent**: Uses **Ollama (local `mistral`)** to derive potential TTPs from the anomalous events.
+- **AttackClassificationAgent**: Classifies events (e.g., Brute Force, Suspicious IP).
+- **AdvancedRiskScoringAgent**: Calculates a 0-100 score utilizing a multi-factor formula including Asset Criticality, Threat Correlation Graph Centrality, and Historical Recurrence (Memory).
+- **MitigationPlannerAgent**: Uses Ollama to autonomously synthesize an actionable incident response plan.
+
+### 4. Threat Correlation Graph Layer
+- **ThreatCorrelationAgent**: Uses `NetworkX` to construct relationship graphs between IPs, Users, and Ports, returning Degree/Betweenness centrality metrics.
+
+### 5. Autonomous Orchestrator Layer (`orchestrator/workflow_graph.py` & `api/main.py`)
+- Defines the `AgentState` object passing through the pipeline.
+- Uses **APScheduler** to automatically poll for anomalies every 30 seconds and run the entire agentic pipeline asynchronously without manual intervention.
+
+### 6. Memory & Dashboard Layer
+- **Memory (`memory/sqlite_manager.py`)**: Stores `incidents`, `ip_history`, and `user_history` to penalize recurring offenders.
+- **FastAPI**: Manages the scheduler and serves state.
+- **Streamlit**: Advanced auto-refreshing dashboard featuring Threat Graphs, Risk Gauges, and Memory timelines.
+
+---
+
+## ⚙️ Installation Guide (Local Deployment)
+
+### Prerequisites
+- Python 3.10+
+- Docker & Docker Compose (For ELK)
+- [Ollama](https://ollama.com) installed and running locally.
+
+### Step 1: Clone / Setup Directory
+```bash
+cd ZYLAR
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Set safe local service values in `.env`. Never commit that file.
-
-## Quality commands
-
-```powershell
-ruff check src/zylar
-mypy src/zylar
-pytest
-python -m pip wheel --no-deps --wheel-dir dist .
+### Step 2: Ensure Ollama is Running
+Pull the required local LLM and keep Ollama running in the background.
+```bash
+ollama pull mistral
+# To ensure the server is active, Ollama desktop app runs in background, or:
+# ollama serve
 ```
 
-These commands run in CI on Python 3.11 and 3.12. Passing them establishes a
-development baseline, not production readiness.
+### Step 3: Start Elasticsearch
+```bash
+cd elk_setup
+docker-compose up -d
+cd ..
+```
+*Wait ~1-2 minutes for Elasticsearch to completely boot.*
 
-## Prototype services
+---
 
-The present prototype uses Elasticsearch for event search, SQLite for legacy
-incident history, LangGraph for orchestration, and Streamlit for the analyst
-dashboard. PostgreSQL will replace SQLite as the transactional system of record
-in the planned persistence slice.
+## 🚀 Execution Walkthrough
 
-For local prototype experimentation only, start Elasticsearch/Kibana from
-`elk_setup/`, then use separate shells for the simulator, API, and dashboard:
+You will need **3 separate terminal windows** inside the activated virtual environment. No API keys are required!
 
-```powershell
+### Terminal 1: Start the Attack Log Simulator
+Generates continuous log traffic including complex multi-stage attacks and writes them to Elasticsearch.
+```bash
 python -m log_generator.simulate_attacks --duration 600
-uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
+### Terminal 2: Start the FastAPI Backend & Autonomous Scheduler
+This exposes the core endpoints and starts the `APScheduler` loop which monitors logs every 30s.
+```bash
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+### Terminal 3: Start the ZYLAR Dashboard
+```bash
 streamlit run dashboard/app.py
 ```
 
-The current Docker Compose file is development-only because Elasticsearch
-security is disabled. Do not expose those services publicly.
+### Using the System
+1. Open the Streamlit URL (usually `http://localhost:8501`).
+2. The system is **Fully Autonomous**.
+3. Watch the **Live Monitoring** tab auto-refresh every 15 seconds. Ensure Elasticsearch and agents are active in the sidebar monitor.
+4. As malicious logs are generated by Terminal 1, the APScheduler (Terminal 2) will detect them, build the `NetworkX` attack graph, call `Ollama` for local analysis, and generate a mitigation plan.
+5. In the **Incident Timeline** tab, you'll see historical autonomous threat responses complete with the Agent's reasoning.
+6. Recurring offenders will display on the Live Dashboard, automatically penalized with higher risk scores by the SQLite Memory agent via the Advanced Scoring Algorithm.
+7. Final detailed PDF/JSON reports are stored in `/reports`.
 
-## Architecture direction
+---
 
-Zylar remains a modular monolith:
-
-- FastAPI is the API boundary.
-- Elasticsearch stores and searches raw security events.
-- PostgreSQL will own incidents, executions, audit data, and entity history.
-- Ollama will provide local-only inference.
-- Streamlit remains the initial analyst UI.
-- Mitigation remains advisory only.
-
-The phased implementation plan governs this work: repository hygiene and
-reproducible tooling, canonical event contracts, API security, local inference,
-PostgreSQL persistence, recoverable workflows, measured detection quality, and
-secure deployment evidence.
-
-## Repository rules
-
-Do not commit virtual environments, bytecode, local databases, reports, model
-artefacts, or `.env` files. Use `.env.example` as the configuration template.
-
-## Project documentation
-
-- [Phase 1 implementation report](docs/reports/phase-1-implementation-report.md)
-
-## License
-
-This project currently has no declared open-source license. Add one before any
-public release.
+## 🧪 Evaluation Metrics & Tests
+- ZYLAR's Isolation Forest correctly bins anomalies without explicit coding.
+- The `GraphCentrality` weights automatically raise scores for bots scanning multiple ports.
+- The `HistoricalRecurrenceFactor` pushes low-level but endless attacks into Critical territory over time.

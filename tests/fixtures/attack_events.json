@@ -1,0 +1,558 @@
+{
+  "brute_force": [
+    {
+      "timestamp": "2026-10-25T12:10:00+00:00",
+      "event_id": "bf-0000",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 1",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:02+00:00",
+      "event_id": "bf-0001",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 2",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:04+00:00",
+      "event_id": "bf-0002",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 3",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:06+00:00",
+      "event_id": "bf-0003",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 4",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:08+00:00",
+      "event_id": "bf-0004",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 5",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:10+00:00",
+      "event_id": "bf-0005",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 6",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:12+00:00",
+      "event_id": "bf-0006",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 7",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:14+00:00",
+      "event_id": "bf-0007",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 8",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:16+00:00",
+      "event_id": "bf-0008",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 9",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:18+00:00",
+      "event_id": "bf-0009",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 10",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:20+00:00",
+      "event_id": "bf-0010",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 11",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:22+00:00",
+      "event_id": "bf-0011",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 12",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:24+00:00",
+      "event_id": "bf-0012",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 13",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:26+00:00",
+      "event_id": "bf-0013",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 14",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:10:28+00:00",
+      "event_id": "bf-0014",
+      "event_type": "authentication",
+      "source_ip": "198.51.100.22",
+      "user": "root",
+      "status": "failed",
+      "details": "Failed SSH password attempt 15",
+      "destination_port": 22
+    }
+  ],
+  "port_scan": [
+    {
+      "timestamp": "2026-10-25T12:20:00+00:00",
+      "event_id": "ps-0000",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 21",
+      "destination_port": 21
+    },
+    {
+      "timestamp": "2026-10-25T12:20:00.200000+00:00",
+      "event_id": "ps-0001",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 22",
+      "destination_port": 22
+    },
+    {
+      "timestamp": "2026-10-25T12:20:00.400000+00:00",
+      "event_id": "ps-0002",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 23",
+      "destination_port": 23
+    },
+    {
+      "timestamp": "2026-10-25T12:20:00.600000+00:00",
+      "event_id": "ps-0003",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 25",
+      "destination_port": 25
+    },
+    {
+      "timestamp": "2026-10-25T12:20:00.800000+00:00",
+      "event_id": "ps-0004",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 53",
+      "destination_port": 53
+    },
+    {
+      "timestamp": "2026-10-25T12:20:01+00:00",
+      "event_id": "ps-0005",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 80",
+      "destination_port": 80
+    },
+    {
+      "timestamp": "2026-10-25T12:20:01.200000+00:00",
+      "event_id": "ps-0006",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 110",
+      "destination_port": 110
+    },
+    {
+      "timestamp": "2026-10-25T12:20:01.400000+00:00",
+      "event_id": "ps-0007",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 135",
+      "destination_port": 135
+    },
+    {
+      "timestamp": "2026-10-25T12:20:01.600000+00:00",
+      "event_id": "ps-0008",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 139",
+      "destination_port": 139
+    },
+    {
+      "timestamp": "2026-10-25T12:20:01.800000+00:00",
+      "event_id": "ps-0009",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 143",
+      "destination_port": 143
+    },
+    {
+      "timestamp": "2026-10-25T12:20:02+00:00",
+      "event_id": "ps-0010",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 443",
+      "destination_port": 443
+    },
+    {
+      "timestamp": "2026-10-25T12:20:02.200000+00:00",
+      "event_id": "ps-0011",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 445",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:20:02.400000+00:00",
+      "event_id": "ps-0012",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 993",
+      "destination_port": 993
+    },
+    {
+      "timestamp": "2026-10-25T12:20:02.600000+00:00",
+      "event_id": "ps-0013",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 995",
+      "destination_port": 995
+    },
+    {
+      "timestamp": "2026-10-25T12:20:02.800000+00:00",
+      "event_id": "ps-0014",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 1433",
+      "destination_port": 1433
+    },
+    {
+      "timestamp": "2026-10-25T12:20:03+00:00",
+      "event_id": "ps-0015",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 1521",
+      "destination_port": 1521
+    },
+    {
+      "timestamp": "2026-10-25T12:20:03.200000+00:00",
+      "event_id": "ps-0016",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 3306",
+      "destination_port": 3306
+    },
+    {
+      "timestamp": "2026-10-25T12:20:03.400000+00:00",
+      "event_id": "ps-0017",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 3389",
+      "destination_port": 3389
+    },
+    {
+      "timestamp": "2026-10-25T12:20:03.600000+00:00",
+      "event_id": "ps-0018",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 5432",
+      "destination_port": 5432
+    },
+    {
+      "timestamp": "2026-10-25T12:20:03.800000+00:00",
+      "event_id": "ps-0019",
+      "event_type": "network",
+      "source_ip": "203.0.113.45",
+      "user": "system",
+      "status": "rejected",
+      "details": "SYN packet rejected on port 8080",
+      "destination_port": 8080
+    }
+  ],
+  "ransomware": [
+    {
+      "timestamp": "2026-10-25T12:30:00+00:00",
+      "event_id": "rw-0000",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_0.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.050000+00:00",
+      "event_id": "rw-0001",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_1.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.100000+00:00",
+      "event_id": "rw-0002",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_2.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.150000+00:00",
+      "event_id": "rw-0003",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_3.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.200000+00:00",
+      "event_id": "rw-0004",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_4.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.250000+00:00",
+      "event_id": "rw-0005",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_5.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.300000+00:00",
+      "event_id": "rw-0006",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_6.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.350000+00:00",
+      "event_id": "rw-0007",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_7.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.400000+00:00",
+      "event_id": "rw-0008",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_8.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.450000+00:00",
+      "event_id": "rw-0009",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_9.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.500000+00:00",
+      "event_id": "rw-0010",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_10.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.550000+00:00",
+      "event_id": "rw-0011",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_11.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.600000+00:00",
+      "event_id": "rw-0012",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_12.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.650000+00:00",
+      "event_id": "rw-0013",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_13.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.700000+00:00",
+      "event_id": "rw-0014",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_14.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.750000+00:00",
+      "event_id": "rw-0015",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_15.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.800000+00:00",
+      "event_id": "rw-0016",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_16.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.850000+00:00",
+      "event_id": "rw-0017",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_17.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.900000+00:00",
+      "event_id": "rw-0018",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_18.xlsx.encrypted",
+      "destination_port": 445
+    },
+    {
+      "timestamp": "2026-10-25T12:30:00.950000+00:00",
+      "event_id": "rw-0019",
+      "event_type": "file_access",
+      "source_ip": "10.0.0.99",
+      "user": "compromised_user",
+      "status": "success",
+      "details": "File modified: /shared/docs/finance_19.xlsx.encrypted",
+      "destination_port": 445
+    }
+  ]
+}

@@ -1,0 +1,202 @@
+[
+  {
+    "timestamp": "2026-10-25T12:00:00+00:00",
+    "event_id": "benign-0000",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.10",
+    "user": "alice",
+    "status": "success",
+    "details": "GET /dashboard/view_0",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:00:10+00:00",
+    "event_id": "benign-0001",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.11",
+    "user": "bob",
+    "status": "success",
+    "details": "GET /dashboard/view_1",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:00:20+00:00",
+    "event_id": "benign-0002",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.12",
+    "user": "charlie",
+    "status": "success",
+    "details": "GET /dashboard/view_2",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:00:30+00:00",
+    "event_id": "benign-0003",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.10",
+    "user": "alice",
+    "status": "success",
+    "details": "GET /dashboard/view_0",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:00:40+00:00",
+    "event_id": "benign-0004",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.11",
+    "user": "bob",
+    "status": "success",
+    "details": "GET /dashboard/view_1",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:00:50+00:00",
+    "event_id": "benign-0005",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.12",
+    "user": "charlie",
+    "status": "success",
+    "details": "GET /dashboard/view_2",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:01:00+00:00",
+    "event_id": "benign-0006",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.10",
+    "user": "alice",
+    "status": "success",
+    "details": "GET /dashboard/view_0",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:01:10+00:00",
+    "event_id": "benign-0007",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.11",
+    "user": "bob",
+    "status": "success",
+    "details": "GET /dashboard/view_1",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:01:20+00:00",
+    "event_id": "benign-0008",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.12",
+    "user": "charlie",
+    "status": "success",
+    "details": "GET /dashboard/view_2",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:01:30+00:00",
+    "event_id": "benign-0009",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.10",
+    "user": "alice",
+    "status": "success",
+    "details": "GET /dashboard/view_0",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:01:40+00:00",
+    "event_id": "benign-0010",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.11",
+    "user": "bob",
+    "status": "success",
+    "details": "GET /dashboard/view_1",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:01:50+00:00",
+    "event_id": "benign-0011",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.12",
+    "user": "charlie",
+    "status": "success",
+    "details": "GET /dashboard/view_2",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:02:00+00:00",
+    "event_id": "benign-0012",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.10",
+    "user": "alice",
+    "status": "success",
+    "details": "GET /dashboard/view_0",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:02:10+00:00",
+    "event_id": "benign-0013",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.11",
+    "user": "bob",
+    "status": "success",
+    "details": "GET /dashboard/view_1",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:02:20+00:00",
+    "event_id": "benign-0014",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.12",
+    "user": "charlie",
+    "status": "success",
+    "details": "GET /dashboard/view_2",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:02:30+00:00",
+    "event_id": "benign-0015",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.10",
+    "user": "alice",
+    "status": "success",
+    "details": "GET /dashboard/view_0",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:02:40+00:00",
+    "event_id": "benign-0016",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.11",
+    "user": "bob",
+    "status": "success",
+    "details": "GET /dashboard/view_1",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:02:50+00:00",
+    "event_id": "benign-0017",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.12",
+    "user": "charlie",
+    "status": "success",
+    "details": "GET /dashboard/view_2",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:03:00+00:00",
+    "event_id": "benign-0018",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.10",
+    "user": "alice",
+    "status": "success",
+    "details": "GET /dashboard/view_0",
+    "destination_port": 443
+  },
+  {
+    "timestamp": "2026-10-25T12:03:10+00:00",
+    "event_id": "benign-0019",
+    "event_type": "web_access",
+    "source_ip": "192.168.1.11",
+    "user": "bob",
+    "status": "success",
+    "details": "GET /dashboard/view_1",
+    "destination_port": 443
+  }
+]
