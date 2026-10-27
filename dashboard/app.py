@@ -1,11 +1,12 @@
-import streamlit as st
-import requests
-import pandas as pd
 import time
-import os
+
 import networkx as nx
+import pandas as pd
+import requests
+import streamlit as st
 from dotenv import load_dotenv
 from streamlit_autorefresh import st_autorefresh
+
 from zylar.core.settings import get_settings
 
 load_dotenv()
@@ -24,10 +25,56 @@ st.title("🛡️ ZYLAR v2 – Autonomous Self-Evolving SOC AI System")
 st.sidebar.markdown("### 🤖 Autonomous Mode: **ACTIVE**")
 st.sidebar.markdown(f"*Last refresh: {time.strftime('%H:%M:%S')}*")
 st.sidebar.markdown("---")
+def get_auth_token() -> str:
+    if "auth_token" in st.session_state and st.session_state["auth_token"]:
+        return st.session_state["auth_token"]
+    try:
+        res = requests.post(
+            f"{API_URL}/api/auth/token",
+            json={
+                "username": settings.bootstrap_admin_username,
+                "password": settings.bootstrap_admin_password.get_secret_value(),
+            },
+            timeout=settings.request_timeout_seconds,
+        )
+        if res.status_code == 200:
+            tok = res.json().get("access_token", "")
+            st.session_state["auth_token"] = tok
+            return tok
+    except Exception:
+        pass
+    return ""
+
+
+token = get_auth_token()
+auth_headers = {"Authorization": f"Bearer {token}"} if token else {}
+
+# Query real-time health checks from /health/ready
+health_checks = {"elasticsearch": "offline", "sqlite": "offline", "ollama": "offline"}
+backend_online = False
+try:
+    h_res = requests.get(f"{API_URL}/health/ready", timeout=settings.request_timeout_seconds)
+    if h_res.status_code in (200, 503):
+        backend_online = True
+        health_checks = h_res.json().get("checks", {})
+except Exception:
+    backend_online = False
+
 st.sidebar.markdown("**System Monitor**")
-st.sidebar.markdown("✔️ **Elasticsearch**: Connected")
-st.sidebar.markdown("✔️ **FastAPI Backend**: Online")
-st.sidebar.markdown("✔️ **SQLite Memory**: Active")
+es_status = health_checks.get("elasticsearch", "offline")
+es_icon = "✔️" if es_status == "healthy" else "❌"
+st.sidebar.markdown(f"{es_icon} **Elasticsearch**: {es_status.capitalize()}")
+
+api_icon = "✔️" if backend_online else "❌"
+st.sidebar.markdown(f"{api_icon} **FastAPI Backend**: {'Online' if backend_online else 'Offline'}")
+
+sqlite_status = health_checks.get("sqlite", "offline")
+sqlite_icon = "✔️" if sqlite_status == "healthy" else "❌"
+st.sidebar.markdown(f"{sqlite_icon} **SQLite Memory**: {sqlite_status.capitalize()}")
+
+ollama_status = health_checks.get("ollama", "offline")
+ollama_icon = "✔️" if ollama_status == "healthy" else ("⚠️" if ollama_status == "degraded" else "❌")
+st.sidebar.markdown(f"{ollama_icon} **Ollama Runtime**: {ollama_status.capitalize()}")
 st.sidebar.markdown("✔️ **Background Scheduler**: Running (30s interval)")
 
 tab1, tab2, tab3 = st.tabs(
@@ -46,17 +93,27 @@ with tab1:
     # Fetch Data
     try:
         res = requests.get(
-            f"{API_URL}/api/logs/recent?minutes=10", timeout=settings.request_timeout_seconds
+            f"{API_URL}/api/logs/recent?minutes=10",
+            headers=auth_headers,
+            timeout=settings.request_timeout_seconds,
         )
         if res.status_code == 200:
             recent_logs = res.json().get("logs", [])
 
-        rep_res = requests.get(f"{API_URL}/api/reports", timeout=settings.request_timeout_seconds)
+        rep_res = requests.get(
+            f"{API_URL}/api/reports",
+            headers=auth_headers,
+            timeout=settings.request_timeout_seconds,
+        )
         if rep_res.status_code == 200:
             reports = rep_res.json().get("reports", [])
             attacks_count = len(reports)
 
-        off_res = requests.get(f"{API_URL}/api/offenders", timeout=settings.request_timeout_seconds)
+        off_res = requests.get(
+            f"{API_URL}/api/offenders",
+            headers=auth_headers,
+            timeout=settings.request_timeout_seconds,
+        )
         if off_res.status_code == 200:
             data = off_res.json().get("data", {})
             top_ips = data.get("top_ips", [])
