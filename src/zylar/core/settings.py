@@ -36,9 +36,6 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://zylar:change-me@127.0.0.1:5432/zylar"
     ollama_url: AnyHttpUrl = cast(AnyHttpUrl, "http://127.0.0.1:11434")
     ollama_model: str = Field(default="mistral", min_length=1, max_length=128)
-
-    # This compatibility field disappears with the Slice 4 local-only adapter.
-    legacy_classifier_model: str = Field(default="gpt-3.5-turbo", min_length=1, max_length=128)
     auth_signing_key: SecretStr = SecretStr("replace-with-a-long-random-secret")
     bootstrap_admin_username: str = Field(default="admin", min_length=1, max_length=64)
     bootstrap_admin_password: SecretStr = SecretStr("change-admin-password-in-production")

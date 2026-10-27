@@ -48,12 +48,8 @@ def test_workflow_integration_benign_logs(isolated_reports_dir: Path):
     benign_raw = generate_deterministic_benign_events(count=10)
     graph = build_workflow()
 
-    # Even if classifier LLM is invoked, mock it to avoid external calls
-    with patch("agents.classifier_agent.ChatOpenAI") as mock_chat:
-        mock_instance = MagicMock()
-        mock_instance.invoke.return_value = MagicMock(content="None")
-        mock_chat.return_value = mock_instance
-
+    # Even if classifier LLM is invoked, mock ollama.Client to avoid external calls
+    with patch("ollama.Client"):
         final_state = graph.invoke({"raw_logs": benign_raw})
 
     parsed = final_state.get("parsed_events", [])
@@ -105,18 +101,17 @@ def test_workflow_integration_attack_logs_with_controlled_dependencies(
                     ])
                 }
             }
+        elif "Attack Classification" in content_prompt:
+            return {
+                "message": {
+                    "content": json.dumps({"category": "Brute Force"})
+                }
+            }
         return {"message": {"content": "{}"}}
 
     mock_ollama_client.chat.side_effect = mock_ollama_chat
 
-    # Controlled mock for ChatOpenAI (classifier agent)
-    mock_chat_classifier = MagicMock()
-    mock_chat_classifier.invoke.return_value = MagicMock(content="Brute Force")
-
-    with (
-        patch("ollama.Client", return_value=mock_ollama_client),
-        patch("agents.classifier_agent.ChatOpenAI", return_value=mock_chat_classifier),
-    ):
+    with patch("ollama.Client", return_value=mock_ollama_client):
         final_state = graph.invoke({"raw_logs": all_logs})
 
     # Node 1: analyze_logs
@@ -178,14 +173,7 @@ def test_workflow_integration_deterministic_fallback_on_llm_failure(
         "Ollama service unreachable on http://127.0.0.1:11434"
     )
 
-    # Classifier agent fallback / mock
-    mock_chat_classifier = MagicMock()
-    mock_chat_classifier.invoke.return_value = MagicMock(content="Brute Force")
-
-    with (
-        patch("ollama.Client", return_value=mock_failing_ollama),
-        patch("agents.classifier_agent.ChatOpenAI", return_value=mock_chat_classifier),
-    ):
+    with patch("ollama.Client", return_value=mock_failing_ollama):
         final_state = graph.invoke({"raw_logs": all_logs})
 
     # Workflow must complete all 8 nodes without crashing
@@ -240,8 +228,7 @@ def test_workflow_integration_quarantines_malformed_records(isolated_reports_dir
 
     graph = build_workflow()
 
-    with patch("agents.classifier_agent.ChatOpenAI") as mock_chat:
-        mock_chat.return_value.invoke.return_value = MagicMock(content="None")
+    with patch("ollama.Client"):
         final_state = graph.invoke({"raw_logs": mixed_raw})
 
     parsed = final_state.get("parsed_events", [])

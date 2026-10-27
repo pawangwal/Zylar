@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from api.main import app
@@ -97,9 +97,7 @@ def test_workflow_run_rbac_analyst_and_admin_allowed():
         ]
     }
 
-    with patch("agents.classifier_agent.ChatOpenAI") as mock_chat:
-        mock_chat.return_value.invoke.return_value = MagicMock(content="None")
-
+    with patch("ollama.Client"):
         # Analyst allowed
         analyst_token = create_access_token("analyst_test", Role.ANALYST)
         res_analyst = client.post(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from api.main import app
 from fastapi.testclient import TestClient
@@ -76,8 +76,7 @@ def test_api_workflow_run_accepts_bounded_batch():
         for i in range(5)
     ]
 
-    with patch("agents.classifier_agent.ChatOpenAI") as mock_chat:
-        mock_chat.return_value.invoke.return_value = MagicMock(content="None")
+    with patch("ollama.Client"):
         response = client.post("/api/workflow/run", json={"events": events}, headers=auth_headers)
 
     assert response.status_code == 200
