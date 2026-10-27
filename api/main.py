@@ -59,7 +59,7 @@ def check_for_threats() -> None:
             },
             "size": 500,
         }
-        res = es.search(index="zylar-logs", body=query)
+        res = es.search(index=settings.elasticsearch_index, body=query)
         logs = [hit["_source"] for hit in res["hits"]["hits"]]
 
         if not logs:
@@ -321,7 +321,7 @@ async def get_recent_logs(
             "sort": [{"timestamp": {"order": "desc"}}],
         }
         res = await anyio.to_thread.run_sync(
-            lambda: es.search(index="zylar-logs", body=query)
+            lambda: es.search(index=settings.elasticsearch_index, body=query)
         )
         return {"logs": [hit["_source"] for hit in res["hits"]["hits"]]}
     except Exception as e:

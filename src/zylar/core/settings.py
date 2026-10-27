@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal, cast
 
-from pydantic import AnyHttpUrl, Field, PositiveInt, SecretStr
+from pydantic import AnyHttpUrl, Field, PositiveInt, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +40,28 @@ class Settings(BaseSettings):
     bootstrap_admin_username: str = Field(default="admin", min_length=1, max_length=64)
     bootstrap_admin_password: SecretStr = SecretStr("change-admin-password-in-production")
     token_expire_minutes: PositiveInt = 60
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> Settings:
+        """Enforces that production deployments do not use placeholder or weak secrets."""
+        if self.environment == "production":
+            key_val = self.auth_signing_key.get_secret_value()
+            if key_val in ("replace-with-a-long-random-secret", "") or len(key_val) < 32:
+                raise ValueError(
+                    "In production, ZYLAR_AUTH_SIGNING_KEY must be a cryptographically strong "
+                    "secret at least 32 characters long."
+                )
+            pwd_val = self.bootstrap_admin_password.get_secret_value()
+            if pwd_val in ("change-admin-password-in-production", "") or len(pwd_val) < 12:
+                raise ValueError(
+                    "In production, ZYLAR_BOOTSTRAP_ADMIN_PASSWORD must be changed from the "
+                    "default placeholder and be at least 12 characters long."
+                )
+            if "change-me" in self.database_url:
+                raise ValueError(
+                    "In production, ZYLAR_DATABASE_URL must not contain placeholder credentials ('change-me')."
+                )
+        return self
 
 
 @lru_cache
