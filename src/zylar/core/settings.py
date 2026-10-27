@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # This compatibility field disappears with the Slice 4 local-only adapter.
     legacy_classifier_model: str = Field(default="gpt-3.5-turbo", min_length=1, max_length=128)
     auth_signing_key: SecretStr = SecretStr("replace-with-a-long-random-secret")
+    bootstrap_admin_username: str = Field(default="admin", min_length=1, max_length=64)
+    bootstrap_admin_password: SecretStr = SecretStr("change-admin-password-in-production")
+    token_expire_minutes: PositiveInt = 60
 
 
 @lru_cache
