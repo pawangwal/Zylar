@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import jwt
 import pytest
@@ -176,3 +177,122 @@ def test_require_roles_admin_only_dependency():
     with pytest.raises(HTTPException) as exc:
         admin_only(principal=analyst_principal)
     assert exc.value.status_code == 403
+
+
+def test_sanitize_audit_details_redacts_sensitive_keys():
+    from zylar.core.security import sanitize_audit_details
+
+    data = {
+        "username": "admin",
+        "password": "super-secret-password-123",
+        "token": "jwt-token-xyz",
+        "api_key": "sk-123456789",
+        "nested": {
+            "secret_key": "private-key-material",
+            "safe_field": "public_data",
+            "authorization": "Bearer secret-token",
+        },
+        "items": [
+            {"credential": "secret-credential", "name": "service-account"},
+            "safe string in list",
+        ],
+    }
+
+    sanitized = sanitize_audit_details(data)
+    assert sanitized["username"] == "admin"
+    assert sanitized["password"] == "[REDACTED]"
+    assert sanitized["token"] == "[REDACTED]"
+    assert sanitized["api_key"] == "[REDACTED]"
+    assert sanitized["nested"]["secret_key"] == "[REDACTED]"
+    assert sanitized["nested"]["safe_field"] == "public_data"
+    assert sanitized["nested"]["authorization"] == "[REDACTED]"
+    assert sanitized["items"][0]["credential"] == "[REDACTED]"
+    assert sanitized["items"][0]["name"] == "service-account"
+    assert sanitized["items"][1] == "safe string in list"
+
+
+def test_sanitize_audit_details_redacts_embedded_secrets():
+    from zylar.core.security import sanitize_audit_details
+
+    conn_str = "postgresql+psycopg://app_user:ultra_secret_pass_999@db.internal:5432/zylar_db"
+    bearer_str = "Connecting with Authorization: Bearer abc123def456xyz and key=secret_val"
+
+    sanitized_conn = sanitize_audit_details(conn_str)
+    assert "ultra_secret_pass_999" not in sanitized_conn
+    assert "postgresql+psycopg://app_user:***@db.internal:5432/zylar_db" == sanitized_conn
+
+    sanitized_bearer = sanitize_audit_details(bearer_str)
+    assert "abc123def456xyz" not in sanitized_bearer
+    assert "Bearer [REDACTED]" in sanitized_bearer
+
+
+def test_sanitize_audit_details_truncates_long_strings_and_bounds_depth():
+    from zylar.core.security import sanitize_audit_details
+
+    long_str = "A" * 2000
+    sanitized_str = sanitize_audit_details(long_str, max_str_len=100)
+    assert len(sanitized_str) == 100
+    assert sanitized_str.endswith("...[TRUNCATED]")
+
+    # Deeply nested dict
+    deep_dict: dict[str, Any] = {"level": 0}
+    curr = deep_dict
+    for i in range(1, 10):
+        curr["next"] = {"level": i}
+        curr = curr["next"]
+
+    sanitized_deep = sanitize_audit_details(deep_dict, max_depth=3)
+    # Beyond max_depth, nested dict is replaced by [DEPTH_EXCEEDED]
+    assert sanitized_deep["next"]["next"]["next"] == "[DEPTH_EXCEEDED]"
+
+
+def test_login_throttler_locks_out_after_threshold_and_recovers():
+    from zylar.core.security import LoginThrottler
+
+    throttler = LoginThrottler(max_attempts=3, window_seconds=60, lockout_seconds=300)
+    key = "ip:198.51.100.1"
+
+    assert throttler.is_locked(key) is False
+
+    # 1st and 2nd failed attempt: not locked
+    throttler.record_failure(key)
+    assert throttler.is_locked(key) is False
+    throttler.record_failure(key)
+    assert throttler.is_locked(key) is False
+
+    # 3rd failed attempt: threshold reached -> locked out!
+    throttler.record_failure(key)
+    assert throttler.is_locked(key) is True
+
+    with pytest.raises(HTTPException) as exc:
+        throttler.check_rate_limit(key)
+    assert exc.value.status_code == 429
+    assert "Too many failed" in exc.value.detail
+
+    # Record success clears lockout
+    throttler.record_success(key)
+    assert throttler.is_locked(key) is False
+
+
+def test_login_throttler_independent_keys():
+    from zylar.core.security import LoginThrottler
+
+    throttler = LoginThrottler(max_attempts=2, window_seconds=60, lockout_seconds=300)
+    throttler.record_failure("user:alice")
+    throttler.record_failure("user:alice")
+
+    assert throttler.is_locked("user:alice") is True
+    assert throttler.is_locked("user:bob") is False
+
+
+def test_dashboard_escape_dot_identifier():
+    from dashboard.app import escape_dot_identifier
+
+    # Escape quotes
+    assert escape_dot_identifier('User:"admin"') == 'User:\\"admin\\"'
+    # Escape backslashes
+    assert escape_dot_identifier("Path\\to\\file") == "Path\\\\to\\\\file"
+    # Escape newlines
+    assert escape_dot_identifier("Node\nwith\rnewline") == "Node\\nwith\\rnewline"
+    # Empty
+    assert escape_dot_identifier("") == ""

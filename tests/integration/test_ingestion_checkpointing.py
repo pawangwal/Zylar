@@ -12,6 +12,7 @@ from zylar.core.settings import get_settings
 from zylar.ingestion.engine import CheckpointedIngestionWorker
 from zylar.persistence.database import DatabaseManager
 from zylar.persistence.dtos import EventRefData, IncidentCreate
+from zylar.persistence.exceptions import StaleLeaseError
 from zylar.persistence.models import (
     DeadLetterEventModel,
     IncidentModel,
@@ -32,10 +33,11 @@ def check_postgres_availability() -> tuple[bool, str]:
         return False, str(exc)
 
 
-_IS_STRICT = (
-    os.environ.get("ZYLAR_REQUIRE_POSTGRES", "").strip().lower() in ("1", "true", "yes")
-    or os.environ.get("CI", "").strip().lower() in ("1", "true", "yes")
-)
+_IS_STRICT = os.environ.get("ZYLAR_REQUIRE_POSTGRES", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+) or os.environ.get("CI", "").strip().lower() in ("1", "true", "yes")
 _PG_AVAILABLE, _PG_ERROR = check_postgres_availability()
 
 pytestmark = pytest.mark.skipif(
@@ -74,12 +76,26 @@ def clean_checkpoint_test_data(db_manager):
     def cleanup():
         with db_manager.engine.connect() as conn:
             with conn.begin():
-                conn.execute(text("DELETE FROM audit_logs WHERE actor LIKE 'test-%' OR correlation_id LIKE 'test-%'"))
-                conn.execute(text("DELETE FROM incidents WHERE incident_id LIKE 'ZYLAR-INC-TEST-%' OR idempotency_key LIKE 'test-%'"))
-                conn.execute(text("DELETE FROM ip_history WHERE ip_address LIKE '198.51.100.%' OR ip_address LIKE '203.0.113.%'"))
+                conn.execute(
+                    text(
+                        "DELETE FROM audit_logs WHERE actor LIKE 'test-%' OR correlation_id LIKE 'test-%'"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "DELETE FROM incidents WHERE incident_id LIKE 'ZYLAR-INC-TEST-%' OR idempotency_key LIKE 'test-%'"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "DELETE FROM ip_history WHERE ip_address LIKE '198.51.100.%' OR ip_address LIKE '203.0.113.%'"
+                    )
+                )
                 conn.execute(text("DELETE FROM user_history WHERE username LIKE 'test_user_%'"))
                 conn.execute(text("DELETE FROM dead_letter_events WHERE stream_id LIKE 'test-%'"))
-                conn.execute(text("DELETE FROM ingestion_checkpoints WHERE stream_id LIKE 'test-%'"))
+                conn.execute(
+                    text("DELETE FROM ingestion_checkpoints WHERE stream_id LIKE 'test-%'")
+                )
 
     cleanup()
     yield
@@ -95,12 +111,17 @@ def test_worker_resumes_from_last_committed_checkpoint(session_factory):
     # Pre-seed initial checkpoint
     with UnitOfWork(session_factory) as uow:
         uow.checkpoints.get_or_create(stream_id, default_start_time=t0)
+        acquired, gen = uow.checkpoints.acquire_lease(stream_id, "pre-seed", default_start_time=t0)
+        assert acquired is True
         uow.checkpoints.advance_checkpoint(
             stream_id=stream_id,
             new_timestamp=t1,
             last_id="doc-02",
             processed_count=2,
+            worker_id="pre-seed",
+            lease_generation=gen,
         )
+        uow.checkpoints.release_lease(stream_id, "pre-seed", gen)
         uow.commit()
 
     # Worker 2 starts up
@@ -109,9 +130,18 @@ def test_worker_resumes_from_last_committed_checkpoint(session_factory):
     mock_es.search.return_value = {
         "hits": {
             "hits": [
-                {"_id": "doc-01", "_source": {"timestamp": t0.isoformat(), "source_ip": "198.51.100.10"}},
-                {"_id": "doc-02", "_source": {"timestamp": t1.isoformat(), "source_ip": "198.51.100.11"}},
-                {"_id": "doc-03", "_source": {"timestamp": t2.isoformat(), "source_ip": "198.51.100.12"}},
+                {
+                    "_id": "doc-01",
+                    "_source": {"timestamp": t0.isoformat(), "source_ip": "198.51.100.10"},
+                },
+                {
+                    "_id": "doc-02",
+                    "_source": {"timestamp": t1.isoformat(), "source_ip": "198.51.100.11"},
+                },
+                {
+                    "_id": "doc-03",
+                    "_source": {"timestamp": t2.isoformat(), "source_ip": "198.51.100.12"},
+                },
             ]
         }
     }
@@ -143,9 +173,16 @@ def test_worker_resumes_from_last_committed_checkpoint(session_factory):
         assert cp.events_processed_count == 3
 
 
-def test_replaying_identical_batch_causes_zero_duplicate_incidents_and_zero_recurrence_increments(session_factory):
+def test_replaying_identical_batch_causes_zero_duplicate_incidents_and_zero_recurrence_increments(
+    session_factory,
+):
     stream_id = "test-stream-replay"
     t0 = datetime(2026, 10, 28, 14, 0, 0, tzinfo=UTC)
+
+    # Pre-seed checkpoint at t0 - 1s
+    with UnitOfWork(session_factory) as uow:
+        uow.checkpoints.get_or_create(stream_id, default_start_time=t0 - timedelta(seconds=1))
+        uow.commit()
 
     raw_event = {
         "_id": "doc-replay-01",
@@ -157,41 +194,40 @@ def test_replaying_identical_batch_causes_zero_duplicate_incidents_and_zero_recu
     }
 
     def workflow_persister(state):
-        with UnitOfWork(session_factory) as uow:
-            dto = IncidentCreate(
-                incident_id="ZYLAR-INC-TEST-REPLAY",
-                idempotency_key="test-key-replay-deterministic",
-                timestamp=t0,
-                attack_classification="Reconnaissance",
-                risk_score=75,
-                risk_category="High",
-                mitigation_plan=["Block IP"],
-                threat_intel={},
-                anomalous_events_count=1,
-                status="NEW",
-                event_refs=[
-                    EventRefData(
-                        event_source="suricata",
-                        source_event_id="doc-replay-01",
-                        raw_event_hash="a" * 64,
-                        event_timestamp=t0,
-                        source_ip="198.51.100.50",
-                        user_identifier="test_user_replay",
-                    )
-                ],
-                actor="test-ingestion",
-                correlation_id="test-corr-replay",
-            )
-            uow.persist_incident_lifecycle(
-                dto,
-                source_ips=["198.51.100.50"],
-                user_identifiers=["test_user_replay"],
-            )
-            uow.commit()
-        return {}
+        dto = IncidentCreate(
+            incident_id="ZYLAR-INC-TEST-REPLAY",
+            idempotency_key="test-key-replay-deterministic",
+            timestamp=t0,
+            attack_classification="Reconnaissance",
+            risk_score=75,
+            risk_category="High",
+            mitigation_plan=["Block IP"],
+            threat_intel={},
+            anomalous_events_count=1,
+            status="NEW",
+            event_refs=[
+                EventRefData(
+                    event_source="suricata",
+                    source_event_id="doc-replay-01",
+                    raw_event_hash="a" * 64,
+                    event_timestamp=t0,
+                    source_ip="198.51.100.50",
+                    user_identifier="test_user_replay",
+                )
+            ],
+            actor="test-ingestion",
+            correlation_id="test-corr-replay",
+        )
+        return {
+            "incident_dto": dto,
+            "contributing_ips": ["198.51.100.50"],
+            "contributing_users": ["test_user_replay"],
+        }
 
     mock_es = MagicMock()
-    mock_es.search.return_value = {"hits": {"hits": [{"_id": "doc-replay-01", "_source": raw_event}]}}
+    mock_es.search.return_value = {
+        "hits": {"hits": [{"_id": "doc-replay-01", "_source": raw_event}]}
+    }
 
     worker = CheckpointedIngestionWorker(
         stream_id=stream_id,
@@ -207,17 +243,19 @@ def test_replaying_identical_batch_causes_zero_duplicate_incidents_and_zero_recu
     assert res1.events_processed == 1
 
     with UnitOfWork(session_factory) as uow:
-        incident_stmt = select(func.count(IncidentModel.id)).where(IncidentModel.idempotency_key == "test-key-replay-deterministic")
+        incident_stmt = select(func.count(IncidentModel.id)).where(
+            IncidentModel.idempotency_key == "test-key-replay-deterministic"
+        )
         assert uow.session.execute(incident_stmt).scalar() == 1
 
         ip_stmt = select(IPHistoryModel).where(IPHistoryModel.ip_address == "198.51.100.50")
         ip_row = uow.session.execute(ip_stmt).scalar_one()
         assert ip_row.offense_count == 1
 
-    # 2. Simulate upstream replay of identical batch (e.g. resetting watermark or redelivered message)
+    # 2. Simulate upstream replay of identical batch (e.g. resetting watermark)
     with UnitOfWork(session_factory) as uow:
-        # Reset watermark back to t0 - 1s to simulate replay
         cp = uow.checkpoints.get(stream_id)
+        assert cp is not None
         cp.last_processed_timestamp = t0 - timedelta(seconds=1)
         cp.last_processed_id = None
         uow.commit()
@@ -299,7 +337,10 @@ def test_poison_pill_event_quarantined_and_batch_proceeds(session_factory):
             "hits": [
                 {
                     "_id": "doc-corrupt",
-                    "_source": {"timestamp": "INVALID_CORRUPT_TIMESTAMP_DATA", "source_ip": "1.2.3.4"},
+                    "_source": {
+                        "timestamp": "INVALID_CORRUPT_TIMESTAMP_DATA",
+                        "source_ip": "1.2.3.4",
+                    },
                 },
                 {
                     "_id": "doc-valid-1",
@@ -337,6 +378,7 @@ def test_poison_pill_event_quarantined_and_batch_proceeds(session_factory):
 
         # Checkpoint advanced past the batch
         cp = uow.checkpoints.get(stream_id)
+        assert cp is not None
         assert cp.last_processed_timestamp == t_valid
         assert cp.last_processed_id == "doc-valid-1"
 
@@ -367,18 +409,18 @@ def test_transient_elasticsearch_failure_and_recovery(session_factory):
 
     with UnitOfWork(session_factory) as uow:
         cp = uow.checkpoints.get(stream_id)
+        assert cp is not None
         assert cp.retry_count == 1
         assert cp.status == "RETRYING"
+        # Reset next_retry_at to past so cooldown is satisfied for next step
+        cp.next_retry_at = datetime.now(UTC) - timedelta(seconds=1)
+        uow.commit()
 
     # 2. ES recovers
     t_new = t_start + timedelta(seconds=10)
     mock_es.search.side_effect = None
     mock_es.search.return_value = {
-        "hits": {
-            "hits": [
-                {"_id": "doc-recovered-01", "_source": {"timestamp": t_new.isoformat()}}
-            ]
-        }
+        "hits": {"hits": [{"_id": "doc-recovered-01", "_source": {"timestamp": t_new.isoformat()}}]}
     }
 
     res2 = worker.poll_and_process_batch()
@@ -388,6 +430,7 @@ def test_transient_elasticsearch_failure_and_recovery(session_factory):
     # Verify retry count is reset to 0 in PostgreSQL
     with UnitOfWork(session_factory) as uow:
         cp_recovered = uow.checkpoints.get(stream_id)
+        assert cp_recovered is not None
         assert cp_recovered.retry_count == 0
         assert cp_recovered.last_error is None
         assert cp_recovered.last_processed_timestamp == t_new
@@ -404,13 +447,6 @@ def test_concurrent_worker_leasing_exclusion(session_factory):
     mock_es = MagicMock()
     mock_es.search.return_value = {"hits": {"hits": []}}
 
-    worker_a = CheckpointedIngestionWorker(
-        stream_id=stream_id,
-        worker_id="worker-A",
-        es_client=mock_es,
-        session_factory=session_factory,
-        lease_duration_seconds=60,
-    )
     worker_b = CheckpointedIngestionWorker(
         stream_id=stream_id,
         worker_id="worker-B",
@@ -419,13 +455,11 @@ def test_concurrent_worker_leasing_exclusion(session_factory):
         lease_duration_seconds=60,
     )
 
-    assert worker_a.worker_id == "worker-A"
-    assert worker_b.worker_id == "worker-B"
-
-    # Worker A acquires lease
+    # Worker A acquires lease directly in DB
     with UnitOfWork(session_factory) as uow:
-        acquired_a = uow.checkpoints.acquire_lease(stream_id, "worker-A", lease_seconds=60)
+        acquired_a, gen_a = uow.checkpoints.acquire_lease(stream_id, "worker-A", lease_seconds=60)
         assert acquired_a is True
+        assert gen_a >= 1
         uow.commit()
 
     # Worker B tries to poll -> must fail lease acquisition and yield
@@ -435,9 +469,280 @@ def test_concurrent_worker_leasing_exclusion(session_factory):
 
     # Worker A releases lease
     with UnitOfWork(session_factory) as uow:
-        uow.checkpoints.release_lease(stream_id, "worker-A")
+        released = uow.checkpoints.release_lease(stream_id, "worker-A", gen_a)
+        assert released is True
         uow.commit()
 
     # Now Worker B can acquire lease
     res_b_after = worker_b.poll_and_process_batch()
     assert res_b_after.status in ("IDLE", "SUCCESS")
+
+
+def test_atomic_rollback_on_checkpoint_failure(session_factory):
+    """Verifies that if checkpoint advancement fails, incident and dead-letter writes roll back."""
+    stream_id = "test-stream-atomic-rollback"
+    t0 = datetime(2026, 10, 28, 14, 0, 0, tzinfo=UTC)
+    t_event = t0 + timedelta(seconds=10)
+
+    with UnitOfWork(session_factory) as uow:
+        uow.checkpoints.get_or_create(stream_id, default_start_time=t0)
+        uow.commit()
+
+    sample_dto = IncidentCreate(
+        incident_id="ZYLAR-INC-TEST-ROLLBACK",
+        idempotency_key="test-key-rollback-verify",
+        timestamp=t_event,
+        attack_classification="Data Exfiltration",
+        risk_score=95,
+        risk_category="Critical",
+        mitigation_plan=["Sever connection"],
+        threat_intel={},
+        anomalous_events_count=1,
+        status="NEW",
+        event_refs=[],
+        actor="test-ingestion",
+        correlation_id="test-corr-rollback",
+    )
+
+    mock_es = MagicMock()
+    mock_es.search.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_id": "doc-poison-rollback",
+                    "_source": {"timestamp": "BAD_TIMESTAMP", "data": "bad"},
+                },
+                {
+                    "_id": "doc-valid-rollback",
+                    "_source": {"timestamp": t_event.isoformat(), "source_ip": "198.51.100.99"},
+                },
+            ]
+        }
+    }
+
+    mock_workflow = MagicMock(
+        return_value={
+            "incident_dto": sample_dto,
+            "contributing_ips": ["198.51.100.99"],
+            "contributing_users": [],
+        }
+    )
+
+    worker = CheckpointedIngestionWorker(
+        stream_id=stream_id,
+        worker_id="test-worker-atomic",
+        es_client=mock_es,
+        session_factory=session_factory,
+        workflow_invoker=mock_workflow,
+    )
+
+    # Inject failure during advance_checkpoint
+    from unittest.mock import patch
+
+    with patch.object(
+        worker,
+        "_handle_failure",
+        wraps=worker._handle_failure,
+    ):
+        with patch(
+            "zylar.persistence.repositories.CheckpointRepository.advance_checkpoint",
+            side_effect=RuntimeError("Simulated checkpoint storage failure"),
+        ):
+            res = worker.poll_and_process_batch()
+
+    assert res.status == "TRANSIENT_FAILURE"
+
+    # CRITICAL VERIFICATION: Single transaction rollback ensured ZERO partial writes!
+    with UnitOfWork(session_factory) as uow:
+        # Incident must NOT exist
+        inc = uow.session.execute(
+            select(IncidentModel).where(IncidentModel.idempotency_key == "test-key-rollback-verify")
+        ).scalar_one_or_none()
+        assert inc is None
+
+        # Dead letter must NOT exist
+        dl = (
+            uow.session.execute(
+                select(DeadLetterEventModel).where(DeadLetterEventModel.stream_id == stream_id)
+            )
+            .scalars()
+            .all()
+        )
+        assert len(dl) == 0
+
+        # Checkpoint watermark must NOT have advanced
+        cp = uow.checkpoints.get(stream_id)
+        assert cp is not None
+        assert cp.last_processed_timestamp == t0
+        assert cp.last_processed_id is None
+
+
+def test_stale_generation_cannot_advance_checkpoint(session_factory):
+    """Verifies that a worker with generation 1 is rejected if generation 2 is active."""
+    stream_id = "test-stream-stale-advance"
+    t0 = datetime(2026, 10, 28, 14, 0, 0, tzinfo=UTC)
+
+    with UnitOfWork(session_factory) as uow:
+        uow.checkpoints.get_or_create(stream_id, default_start_time=t0)
+        # Worker 1 acquires generation 1
+        acq1, gen1 = uow.checkpoints.acquire_lease(stream_id, "worker-1", lease_seconds=1)
+        assert acq1 is True
+        assert gen1 == 1
+        uow.commit()
+
+    # Expire worker 1's lease manually in DB
+    with UnitOfWork(session_factory) as uow:
+        cp = uow.checkpoints.get(stream_id)
+        assert cp is not None
+        cp.lease_expires_at = datetime.now(UTC) - timedelta(seconds=10)
+        uow.commit()
+
+    # Worker 2 acquires generation 2
+    with UnitOfWork(session_factory) as uow:
+        acq2, gen2 = uow.checkpoints.acquire_lease(stream_id, "worker-2", lease_seconds=60)
+        assert acq2 is True
+        assert gen2 == 2
+        uow.commit()
+
+    # Stale Worker 1 attempts to advance checkpoint using old gen1
+    with pytest.raises(StaleLeaseError) as exc_info:
+        with UnitOfWork(session_factory) as uow:
+            uow.checkpoints.advance_checkpoint(
+                stream_id=stream_id,
+                new_timestamp=t0 + timedelta(seconds=10),
+                last_id="doc-stale-01",
+                processed_count=1,
+                worker_id="worker-1",
+                lease_generation=gen1,
+            )
+            uow.commit()
+
+    assert (
+        "fencing token mismatch" in str(exc_info.value).lower()
+        or "stale" in str(exc_info.value).lower()
+    )
+
+    # Active Worker 2 lease state remains unchanged
+    with UnitOfWork(session_factory) as uow:
+        cp_active = uow.checkpoints.get(stream_id)
+        assert cp_active is not None
+        assert cp_active.lease_owner == "worker-2"
+        assert cp_active.lease_generation == 2
+        assert cp_active.last_processed_timestamp == t0
+
+
+def test_stale_worker_failure_recording_leaves_active_lease_intact(session_factory):
+    """Verifies that a failure report from stale worker 1 does not mutate worker 2's lease or retry state."""
+    stream_id = "test-stream-stale-failure"
+    t0 = datetime(2026, 10, 28, 14, 0, 0, tzinfo=UTC)
+
+    with UnitOfWork(session_factory) as uow:
+        uow.checkpoints.get_or_create(stream_id, default_start_time=t0)
+        acq1, gen1 = uow.checkpoints.acquire_lease(stream_id, "worker-1", lease_seconds=1)
+        assert acq1 is True
+        assert gen1 == 1
+        uow.commit()
+
+    # Expire lease and let worker 2 acquire generation 2
+    with UnitOfWork(session_factory) as uow:
+        cp = uow.checkpoints.get(stream_id)
+        assert cp is not None
+        cp.lease_expires_at = datetime.now(UTC) - timedelta(seconds=10)
+        uow.commit()
+
+    with UnitOfWork(session_factory) as uow:
+        acq2, gen2 = uow.checkpoints.acquire_lease(stream_id, "worker-2", lease_seconds=60)
+        assert acq2 is True
+        assert gen2 == 2
+        uow.commit()
+
+    # Worker 1 encounters a failure and attempts to record it
+    with pytest.raises(StaleLeaseError):
+        with UnitOfWork(session_factory) as uow:
+            uow.checkpoints.record_failure(
+                stream_id=stream_id,
+                error="Worker 1 timeout error",
+                worker_id="worker-1",
+                lease_generation=gen1,
+            )
+            uow.commit()
+
+    # Worker 2's active lease, status, and retry state are completely unharmed!
+    with UnitOfWork(session_factory) as uow:
+        active_cp = uow.checkpoints.get(stream_id)
+        assert active_cp is not None
+        assert active_cp.lease_owner == "worker-2"
+        assert active_cp.lease_generation == 2
+        assert active_cp.status == "PROCESSING"
+        assert active_cp.retry_count == 0
+        assert active_cp.last_error is None
+
+
+def test_search_after_multiple_pages_with_equal_timestamps(session_factory):
+    """Verifies that multiple pages sharing the same timestamp are paged via search_after without duplicates."""
+    stream_id = "test-stream-search-after-multi"
+    t_shared = datetime(2026, 10, 28, 14, 0, 0, tzinfo=UTC)
+
+    with UnitOfWork(session_factory) as uow:
+        uow.checkpoints.get_or_create(stream_id, default_start_time=t_shared - timedelta(seconds=1))
+        uow.commit()
+
+    # Page 1: returns doc-01 and doc-02
+    page1_hits = [
+        {
+            "_id": "doc-01",
+            "_source": {"timestamp": t_shared.isoformat(), "source_ip": "198.51.100.1"},
+        },
+        {
+            "_id": "doc-02",
+            "_source": {"timestamp": t_shared.isoformat(), "source_ip": "198.51.100.2"},
+        },
+    ]
+    # Page 2: returns doc-03
+    page2_hits = [
+        {
+            "_id": "doc-03",
+            "_source": {"timestamp": t_shared.isoformat(), "source_ip": "198.51.100.3"},
+        },
+    ]
+
+    mock_es = MagicMock()
+    mock_es.search.side_effect = [
+        {"hits": {"hits": page1_hits}},
+        {"hits": {"hits": page2_hits}},
+    ]
+
+    worker = CheckpointedIngestionWorker(
+        stream_id=stream_id,
+        worker_id="test-worker-pager",
+        es_client=mock_es,
+        session_factory=session_factory,
+        batch_size=2,
+        workflow_invoker=lambda state: {},
+    )
+
+    # Cycle 1
+    res1 = worker.poll_and_process_batch()
+    assert res1.status == "SUCCESS"
+    assert res1.events_processed == 2
+    assert res1.checkpoint_id == "doc-02"
+
+    # Cycle 2
+    res2 = worker.poll_and_process_batch()
+    assert res2.status == "SUCCESS"
+    assert res2.events_processed == 1
+    assert res2.checkpoint_id == "doc-03"
+
+    # Verify query for cycle 2 used search_after
+    calls = mock_es.search.call_args_list
+    assert len(calls) == 2
+    second_call_body = calls[1][1].get("body", {})
+    assert second_call_body.get("search_after") == [t_shared.isoformat(), "doc-02"]
+
+    # Final checkpoint verified in PostgreSQL
+    with UnitOfWork(session_factory) as uow:
+        cp = uow.checkpoints.get(stream_id)
+        assert cp is not None
+        assert cp.last_processed_timestamp == t_shared
+        assert cp.last_processed_id == "doc-03"
+        assert cp.events_processed_count == 3

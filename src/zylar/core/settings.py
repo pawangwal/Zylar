@@ -9,27 +9,31 @@ from typing import Literal, cast
 from pydantic import AnyHttpUrl, Field, PositiveInt, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-KNOWN_PLACEHOLDER_KEYS: frozenset[str] = frozenset({
-    "replace-with-a-long-random-secret",
-    "secret",
-    "changeme",
-    "default",
-    "jwt-secret",
-    "replace-me",
-})
+KNOWN_PLACEHOLDER_KEYS: frozenset[str] = frozenset(
+    {
+        "replace-with-a-long-random-secret",
+        "secret",
+        "changeme",
+        "default",
+        "jwt-secret",
+        "replace-me",
+    }
+)
 
-KNOWN_PLACEHOLDER_PASSWORDS: frozenset[str] = frozenset({
-    "change-admin-password-in-production",
-    "change-me",
-    "changeme",
-    "password",
-    "admin",
-    "root",
-    "secret",
-    "replace-me",
-    "123456",
-    "test",
-})
+KNOWN_PLACEHOLDER_PASSWORDS: frozenset[str] = frozenset(
+    {
+        "change-admin-password-in-production",
+        "change-me",
+        "changeme",
+        "password",
+        "admin",
+        "root",
+        "secret",
+        "replace-me",
+        "123456",
+        "test",
+    }
+)
 
 
 class Settings(BaseSettings):
@@ -56,7 +60,7 @@ class Settings(BaseSettings):
 
     elasticsearch_url: AnyHttpUrl = cast(AnyHttpUrl, "http://127.0.0.1:9200")
     elasticsearch_index: str = Field(default="zylar-logs", min_length=1, max_length=255)
-    database_url: str = "postgresql+psycopg://zylar:change-me@127.0.0.1:5432/zylar"
+    database_url: str = "postgresql+psycopg://zylar:change-me@127.0.0.1:5434/zylar_db"
     db_pool_size: PositiveInt = 10
     db_max_overflow: int = Field(default=20, ge=0)
     db_pool_timeout_seconds: PositiveInt = 30
@@ -117,9 +121,7 @@ class Settings(BaseSettings):
                 )
 
             if not parsed.hostname:
-                raise ValueError(
-                    "In production, ZYLAR_DATABASE_URL must specify a database host."
-                )
+                raise ValueError("In production, ZYLAR_DATABASE_URL must specify a database host.")
 
             if not parsed.username or parsed.username.strip() in KNOWN_PLACEHOLDER_PASSWORDS:
                 raise ValueError(

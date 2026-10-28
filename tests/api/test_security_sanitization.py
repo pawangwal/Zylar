@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import pkgutil
+from datetime import UTC, datetime
 
 from api.main import app
 from fastapi.testclient import TestClient
@@ -95,4 +96,94 @@ def test_sqlite_retirement_no_active_persistence_call_sites():
         mod_dict = getattr(mod, "__dict__", {})
         for name, val in mod_dict.items():
             val_str = str(val).lower()
-            assert "sqlite_manager" not in val_str, f"Module {mod.__name__} has reference to sqlite_manager in symbol {name}"
+            assert "sqlite_manager" not in val_str, (
+                f"Module {mod.__name__} has reference to sqlite_manager in symbol {name}"
+            )
+
+
+def test_validation_exception_handler_scrubs_raw_input():
+    """Verifies that 422 RequestValidationError details do not echo back raw sensitive user input."""
+    sensitive_input = "MySuperSecretPlaintextPassword!999"
+    # Pass integer where string expected to trigger a type error
+    response = client.post(
+        "/api/auth/token",
+        json={"username": "alice", "password": {"secret_obj": sensitive_input}},
+    )
+    assert response.status_code == 422
+    data = response.json()
+    assert data["error"] == "Validation Error"
+    details = data["details"]
+    assert isinstance(details, list)
+    for err in details:
+        # Crucial: input must be scrubbed
+        assert "input" not in err, f"Error detail leaked raw input: {err}"
+    assert sensitive_input not in response.text
+
+
+def test_login_throttler_blocks_abusive_logins():
+    """Verifies that repeated failed login attempts trigger HTTP 429 Too Many Requests."""
+    from zylar.core.security import get_login_throttler
+
+    throttler = get_login_throttler()
+    throttler.reset()
+
+    try:
+        # Send 5 invalid login attempts
+        for _ in range(5):
+            res = client.post(
+                "/api/auth/token",
+                json={"username": "throttled_attacker", "password": "wrong_password_attempt"},
+            )
+            assert res.status_code == 401
+
+        # 6th attempt must be throttled with HTTP 429
+        res_locked = client.post(
+            "/api/auth/token",
+            json={"username": "throttled_attacker", "password": "wrong_password_attempt"},
+        )
+        assert res_locked.status_code == 429
+        data = res_locked.json()
+        assert "Too many failed authentication attempts" in data["error"]
+        assert "Retry-After" in res_locked.headers
+    finally:
+        throttler.reset()
+
+
+def test_ingestion_status_masks_raw_internal_exception():
+    """Verifies that /api/ingestion/status redacts passwords from checkpoint last_error."""
+    from unittest.mock import MagicMock, patch
+
+    from zylar.core.security import Role, create_access_token
+    from zylar.persistence.models import IngestionCheckpointModel
+
+    raw_error = (
+        "Connection failed to postgresql://zylar_user:super_secret_db_pass@127.0.0.1:5432/zylar_db"
+    )
+    mock_cp = IngestionCheckpointModel(
+        stream_id="elasticsearch-soc-events",
+        status="RETRYING",
+        last_processed_timestamp=datetime(2026, 10, 28, 12, 0, tzinfo=UTC),
+        last_processed_id="doc-123",
+        batch_sequence=1,
+        events_processed_count=10,
+        retry_count=2,
+        last_error=raw_error,
+    )
+
+    token = create_access_token("analyst_test", role=Role.ANALYST)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with patch("api.main.UnitOfWork") as mock_uow_cls:
+        mock_uow = MagicMock()
+        mock_uow.checkpoints.get.return_value = mock_cp
+        mock_uow.checkpoints.get_checkpoint_lag_seconds.return_value = 15.0
+        mock_uow.checkpoints.get_dead_letter_count.return_value = 0
+        mock_uow_cls.return_value.__enter__.return_value = mock_uow
+
+        res = client.get("/api/ingestion/status", headers=headers)
+
+    assert res.status_code == 200
+    data = res.json()
+    assert "super_secret_db_pass" not in res.text
+    assert "super_secret_db_pass" not in data.get("last_error", "")
+    assert "postgresql://zylar_user:***@127.0.0.1:5432/zylar_db" in data["last_error"]

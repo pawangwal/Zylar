@@ -34,15 +34,25 @@ class NormalizedEvent(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    event_id: str = Field(..., min_length=1, max_length=128, description="Stable, non-empty event identifier")
+    event_id: str = Field(
+        ..., min_length=1, max_length=128, description="Stable, non-empty event identifier"
+    )
     timestamp: datetime = Field(..., description="Timezone-aware UTC timestamp")
     event_type: str = Field(..., min_length=1, max_length=64, description="Categorical event type")
-    source_ip: str | None = Field(default=None, max_length=45, description="Validated IPv4 or IPv6 address")
+    source_ip: str | None = Field(
+        default=None, max_length=45, description="Validated IPv4 or IPv6 address"
+    )
     user: str | None = Field(default=None, max_length=128, description="Canonical user identity")
     status: str | None = Field(default=None, max_length=64, description="Action outcome or status")
-    destination_port: int | None = Field(default=None, description="TCP/UDP port between 1 and 65535")
-    details: str | None = Field(default=None, max_length=2048, description="Untrusted event context/payload")
-    source: str = Field(default="unknown", min_length=1, max_length=128, description="Event producer identity")
+    destination_port: int | None = Field(
+        default=None, description="TCP/UDP port between 1 and 65535"
+    )
+    details: str | None = Field(
+        default=None, max_length=2048, description="Untrusted event context/payload"
+    )
+    source: str = Field(
+        default="unknown", min_length=1, max_length=128, description="Event producer identity"
+    )
     raw_event_hash: str = Field(..., description="Deterministic SHA-256 hash of raw event payload")
 
     @model_validator(mode="before")
@@ -178,7 +188,9 @@ class EventNormalizer:
             normalized_dict = dict(raw_log)
 
         # Determine canonical source scope
-        source_scope = str(raw_log.get("_index") or normalized_dict.get("source") or default_source).strip()
+        source_scope = str(
+            raw_log.get("_index") or normalized_dict.get("source") or default_source
+        ).strip()
 
         # -----------------------------------------------------------------
         # Event Identity Precedence
@@ -271,11 +283,13 @@ class EventNormalizer:
                 event = cls.normalize_single(item, default_source=default_source)
                 events.append(event)
             except Exception as exc:
-                quarantined.append({
-                    "batch_index": index,
-                    "raw_record": item,
-                    "error_reason": str(exc),
-                })
+                quarantined.append(
+                    {
+                        "batch_index": index,
+                        "raw_record": item,
+                        "error_reason": str(exc),
+                    }
+                )
 
         return NormalizationResult(
             events=events,

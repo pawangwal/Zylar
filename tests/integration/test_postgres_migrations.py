@@ -181,6 +181,51 @@ def test_alembic_migration_lifecycle(disposable_test_db):
                     )
                 )
 
+        # Constraint test: invalid checkpoint status (chk_checkpoint_status)
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO ingestion_checkpoints (
+                            stream_id, last_processed_timestamp, status
+                        ) VALUES (
+                            'valid-stream-invalid-status', NOW(), 'INVALID_STATUS'
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: negative checkpoint batch_sequence (chk_batch_sequence_nonneg)
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO ingestion_checkpoints (
+                            stream_id, last_processed_timestamp, batch_sequence
+                        ) VALUES (
+                            'valid-stream-neg-seq', NOW(), -1
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: negative checkpoint lease_generation (chk_lease_generation_nonneg)
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO ingestion_checkpoints (
+                            stream_id, last_processed_timestamp, lease_generation
+                        ) VALUES (
+                            'valid-stream-neg-gen', NOW(), -1
+                        )
+                        """
+                    )
+                )
+
         # Constraint test: blank dead letter hash
         with pytest.raises((IntegrityError, DBAPIError)):
             with conn.begin():
@@ -191,6 +236,50 @@ def test_alembic_migration_lifecycle(disposable_test_db):
                             stream_id, raw_event_hash, error_reason
                         ) VALUES (
                             'valid-stream', '   ', 'bad format'
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: invalid dead letter status (chk_dead_letter_status)
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO dead_letter_events (
+                            stream_id, raw_event_hash, error_reason, status
+                        ) VALUES (
+                            'valid-stream', '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'bad format', 'INVALID_DLQ_STATUS'
+                        )
+                        """
+                    )
+                )
+
+        # Valid insert on dead_letter_events
+        with conn.begin():
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO dead_letter_events (
+                        stream_id, event_id, raw_event_hash, error_reason, status
+                    ) VALUES (
+                        'stream-dlq-1', 'evt-poison-1', '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'malformed', 'QUARANTINED'
+                    )
+                    """
+                )
+            )
+
+        # Unique constraint test: duplicate (stream_id, event_id) on dead_letter_events (uq_dead_letter_stream_event)
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO dead_letter_events (
+                            stream_id, event_id, raw_event_hash, error_reason, status
+                        ) VALUES (
+                            'stream-dlq-1', 'evt-poison-1', 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789', 'duplicate poison', 'QUARANTINED'
                         )
                         """
                     )
@@ -229,14 +318,24 @@ def test_alembic_migration_lifecycle(disposable_test_db):
                     )
                 )
 
-    # 4. Test clean downgrade
+    # 4. Test intermediate downgrade to 0002_checkpointed_ingestion
+    command.downgrade(alembic_config, "0002_checkpointed_ingestion")
+    inspector_post_0002 = inspect(engine)
+    cp_cols_0002 = {c["name"] for c in inspector_post_0002.get_columns("ingestion_checkpoints")}
+    assert "lease_generation" not in cp_cols_0002
+    assert "next_retry_at" not in cp_cols_0002
+
+    # 5. Test clean downgrade to base
     command.downgrade(alembic_config, "base")
     inspector_post_downgrade = inspect(engine)
     remaining_tables = set(inspector_post_downgrade.get_table_names())
     assert expected.isdisjoint(remaining_tables)
 
-    # 5. Test clean re-upgrade
+    # 6. Test clean re-upgrade to head
     command.upgrade(alembic_config, "head")
     inspector_reupgrade = inspect(engine)
     reup_tables = set(inspector_reupgrade.get_table_names())
     assert expected.issubset(reup_tables)
+    cp_cols_reup = {c["name"] for c in inspector_reupgrade.get_columns("ingestion_checkpoints")}
+    assert "lease_generation" in cp_cols_reup
+    assert "next_retry_at" in cp_cols_reup

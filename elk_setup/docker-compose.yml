@@ -10,7 +10,7 @@ services:
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
     ports:
-      - "9200:9200"
+      - "127.0.0.1:9200:9200"
     networks:
       - zylar_net
     volumes:
@@ -22,7 +22,7 @@ services:
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     ports:
-      - "5601:5601"
+      - "127.0.0.1:5601:5601"
     networks:
       - zylar_net
     depends_on:

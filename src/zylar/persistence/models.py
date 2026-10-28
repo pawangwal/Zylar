@@ -82,8 +82,12 @@ class IncidentModel(Base):
     )
 
     __table_args__ = (
-        CheckConstraint("risk_score >= 0 AND risk_score <= 100", name="chk_incidents_risk_score_range"),
-        CheckConstraint("anomalous_events_count >= 0", name="chk_incidents_anomalous_events_nonneg"),
+        CheckConstraint(
+            "risk_score >= 0 AND risk_score <= 100", name="chk_incidents_risk_score_range"
+        ),
+        CheckConstraint(
+            "anomalous_events_count >= 0", name="chk_incidents_anomalous_events_nonneg"
+        ),
         CheckConstraint(
             "status IN ('NEW', 'TRIAGED', 'INVESTIGATING', 'RESOLVED', 'CLOSED', 'FALSE_POSITIVE')",
             name="chk_incidents_valid_status",
@@ -195,7 +199,9 @@ class RiskHistoryModel(Base):
     incident: Mapped[IncidentModel] = relationship("IncidentModel", back_populates="risk_records")
 
     __table_args__ = (
-        CheckConstraint("risk_score >= 0 AND risk_score <= 100", name="chk_risk_history_score_range"),
+        CheckConstraint(
+            "risk_score >= 0 AND risk_score <= 100", name="chk_risk_history_score_range"
+        ),
         Index("ix_risk_history_incident_time", "incident_id", "timestamp"),
     )
 
@@ -258,6 +264,10 @@ class IngestionCheckpointModel(Base):
     lease_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    lease_generation: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0")
@@ -270,9 +280,19 @@ class IngestionCheckpointModel(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "status IN ('IDLE', 'PROCESSING', 'RETRYING', 'FAILED')",
+            name="chk_checkpoint_status",
+        ),
+        CheckConstraint("batch_sequence >= 0", name="chk_batch_sequence_nonneg"),
+        CheckConstraint("lease_generation >= 0", name="chk_lease_generation_nonneg"),
         CheckConstraint("retry_count >= 0", name="chk_ingestion_checkpoints_retry_nonneg"),
-        CheckConstraint("events_processed_count >= 0", name="chk_ingestion_checkpoints_count_nonneg"),
-        CheckConstraint("length(trim(stream_id)) > 0", name="chk_ingestion_checkpoints_stream_not_blank"),
+        CheckConstraint(
+            "events_processed_count >= 0", name="chk_ingestion_checkpoints_count_nonneg"
+        ),
+        CheckConstraint(
+            "length(trim(stream_id)) > 0", name="chk_ingestion_checkpoints_stream_not_blank"
+        ),
     )
 
 
@@ -298,6 +318,11 @@ class DeadLetterEventModel(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "status IN ('QUARANTINED', 'REPROCESSED', 'DISCARDED')",
+            name="chk_dead_letter_status",
+        ),
+        UniqueConstraint("stream_id", "event_id", name="uq_dead_letter_stream_event"),
         CheckConstraint("length(trim(stream_id)) > 0", name="chk_dead_letter_stream_not_blank"),
         CheckConstraint("length(trim(raw_event_hash)) > 0", name="chk_dead_letter_hash_not_blank"),
         Index("ix_dead_letter_stream_quarantine", "stream_id", "quarantined_at"),

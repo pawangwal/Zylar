@@ -40,3 +40,5 @@ class AgentState(TypedDict, total=False):
     idempotency_key: str
     correlation_id: str
     actor: str
+    defer_persistence: bool
+    incident_dto: Any

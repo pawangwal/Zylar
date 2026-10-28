@@ -25,9 +25,7 @@ def test_classifier_with_ollama_success():
     }
 
     mock_client = MagicMock()
-    mock_client.chat.return_value = {
-        "message": {"content": json.dumps({"category": "Port Scan"})}
-    }
+    mock_client.chat.return_value = {"message": {"content": json.dumps({"category": "Port Scan"})}}
 
     with patch("ollama.Client", return_value=mock_client):
         result = classify_attack_node(state)

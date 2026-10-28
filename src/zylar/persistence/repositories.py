@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -17,6 +19,7 @@ from zylar.persistence.exceptions import (
     IdempotencyConflictError,
     PersistenceError,
     RecordNotFoundError,
+    StaleLeaseError,
 )
 from zylar.persistence.models import (
     AuditLogModel,
@@ -285,19 +288,23 @@ class OffenderHistoryRepository:
 
         for ip in clean_ips:
             if is_pg:
-                stmt = pg_insert(IPHistoryModel).values(
-                    ip_address=ip,
-                    offense_count=1,
-                    last_seen=timestamp,
-                    last_risk_score=risk_score,
-                ).on_conflict_do_update(
-                    index_elements=[IPHistoryModel.ip_address],
-                    set_={
-                        "offense_count": IPHistoryModel.offense_count + 1,
-                        "last_seen": timestamp,
-                        "last_risk_score": risk_score,
-                        "updated_at": func.now(),
-                    },
+                stmt = (
+                    pg_insert(IPHistoryModel)
+                    .values(
+                        ip_address=ip,
+                        offense_count=1,
+                        last_seen=timestamp,
+                        last_risk_score=risk_score,
+                    )
+                    .on_conflict_do_update(
+                        index_elements=[IPHistoryModel.ip_address],
+                        set_={
+                            "offense_count": IPHistoryModel.offense_count + 1,
+                            "last_seen": timestamp,
+                            "last_risk_score": risk_score,
+                            "updated_at": func.now(),
+                        },
+                    )
                 )
                 self._session.execute(stmt)
             else:
@@ -318,19 +325,23 @@ class OffenderHistoryRepository:
 
         for user in clean_users:
             if is_pg:
-                stmt = pg_insert(UserHistoryModel).values(
-                    username=user,
-                    offense_count=1,
-                    last_seen=timestamp,
-                    last_risk_score=risk_score,
-                ).on_conflict_do_update(
-                    index_elements=[UserHistoryModel.username],
-                    set_={
-                        "offense_count": UserHistoryModel.offense_count + 1,
-                        "last_seen": timestamp,
-                        "last_risk_score": risk_score,
-                        "updated_at": func.now(),
-                    },
+                stmt = (
+                    pg_insert(UserHistoryModel)
+                    .values(
+                        username=user,
+                        offense_count=1,
+                        last_seen=timestamp,
+                        last_risk_score=risk_score,
+                    )
+                    .on_conflict_do_update(
+                        index_elements=[UserHistoryModel.username],
+                        set_={
+                            "offense_count": UserHistoryModel.offense_count + 1,
+                            "last_seen": timestamp,
+                            "last_risk_score": risk_score,
+                            "updated_at": func.now(),
+                        },
+                    )
                 )
                 self._session.execute(stmt)
             else:
@@ -354,7 +365,9 @@ class OffenderHistoryRepository:
     def get_top_offenders(self, limit: int = 5) -> dict[str, list[dict[str, Any]]]:
         """Retrieves the top recurring offending IPs and usernames ordered by offense count."""
         ip_stmt = (
-            select(IPHistoryModel.ip_address, IPHistoryModel.offense_count, IPHistoryModel.last_seen)
+            select(
+                IPHistoryModel.ip_address, IPHistoryModel.offense_count, IPHistoryModel.last_seen
+            )
             .order_by(IPHistoryModel.offense_count.desc())
             .limit(limit)
         )
@@ -368,7 +381,11 @@ class OffenderHistoryRepository:
         ]
 
         user_stmt = (
-            select(UserHistoryModel.username, UserHistoryModel.offense_count, UserHistoryModel.last_seen)
+            select(
+                UserHistoryModel.username,
+                UserHistoryModel.offense_count,
+                UserHistoryModel.last_seen,
+            )
             .order_by(UserHistoryModel.offense_count.desc())
             .limit(limit)
         )
@@ -384,6 +401,9 @@ class OffenderHistoryRepository:
         return {"top_ips": top_ips, "top_users": top_users}
 
 
+MAX_DEAD_LETTER_PAYLOAD_BYTES = 64 * 1024  # 64 KiB (65,536 bytes)
+
+
 class CheckpointRepository:
     """Repository managing persistent ingestion watermarks, lease state, and dead-letter quarantine."""
 
@@ -392,7 +412,9 @@ class CheckpointRepository:
 
     def get(self, stream_id: str) -> IngestionCheckpointModel | None:
         """Retrieves a checkpoint by stream identifier."""
-        stmt = select(IngestionCheckpointModel).where(IngestionCheckpointModel.stream_id == stream_id)
+        stmt = select(IngestionCheckpointModel).where(
+            IngestionCheckpointModel.stream_id == stream_id
+        )
         return self._session.execute(stmt).scalar_one_or_none()
 
     def get_or_create(
@@ -406,6 +428,7 @@ class CheckpointRepository:
         cp = IngestionCheckpointModel(
             stream_id=stream_id,
             last_processed_timestamp=default_start_time,
+            lease_generation=0,
             status="IDLE",
         )
         self._session.add(cp)
@@ -418,11 +441,123 @@ class CheckpointRepository:
         worker_id: str,
         lease_seconds: int = 60,
         default_start_time: datetime | None = None,
-    ) -> bool:
+    ) -> tuple[bool, int]:
         """Atomically acquires an ingestion lease for worker_id.
 
-        Returns True if the lease was granted or renewed; False if an unexpired lease
-        is held by another worker.
+        Returns (acquired, lease_generation).
+        Enforces retry cooldown (next_retry_at), checks lease expiry,
+        increments lease_generation monotonically, and sets status to 'PROCESSING'.
+        """
+        now = datetime.now(UTC)
+        start_time = default_start_time or now
+
+        bind = None
+        try:
+            bind = self._session.get_bind()
+        except Exception:
+            pass
+        is_pg = (
+            bind is not None
+            and getattr(bind, "dialect", None) is not None
+            and bind.dialect.name == "postgresql"
+        )
+
+        if is_pg:
+            # Conflict-safe initial checkpoint creation so SELECT ... FOR UPDATE always locks
+            init_stmt = (
+                pg_insert(IngestionCheckpointModel)
+                .values(
+                    stream_id=stream_id,
+                    last_processed_timestamp=start_time,
+                    status="IDLE",
+                    lease_generation=0,
+                    retry_count=0,
+                    events_processed_count=0,
+                    batch_sequence=0,
+                )
+                .on_conflict_do_nothing(index_elements=["stream_id"])
+            )
+            self._session.execute(init_stmt)
+
+        stmt = (
+            select(IngestionCheckpointModel)
+            .where(IngestionCheckpointModel.stream_id == stream_id)
+            .with_for_update()
+        )
+        checkpoint = self._session.execute(stmt).scalar_one_or_none()
+
+        if checkpoint is None:
+            # Fallback for non-PostgreSQL (e.g. SQLite / mock session)
+            checkpoint = IngestionCheckpointModel(
+                stream_id=stream_id,
+                last_processed_timestamp=start_time,
+                lease_owner=worker_id,
+                lease_generation=1,
+                lease_expires_at=now + timedelta(seconds=lease_seconds),
+                status="PROCESSING",
+            )
+            self._session.add(checkpoint)
+            self._session.flush()
+            return True, 1
+
+        # 1. Enforce scheduled retry cooldown deadline
+        if checkpoint.next_retry_at is not None and checkpoint.next_retry_at > now:
+            return False, checkpoint.lease_generation
+
+        # 2. Check current lease ownership and active expiry
+        if checkpoint.lease_owner is not None and checkpoint.lease_owner != worker_id:
+            # Another worker has this lease.
+            # Cannot acquire unless lease is explicitly expired.
+            # Invariant 3: A missing lease expiry must not authorize stealing a lease with an owner.
+            if checkpoint.lease_expires_at is None or checkpoint.lease_expires_at > now:
+                return False, checkpoint.lease_generation
+
+        # Eligible to acquire (new stream, owned by this worker, unowned, or previous lease expired)
+        checkpoint.lease_generation = (checkpoint.lease_generation or 0) + 1
+        checkpoint.lease_owner = worker_id
+        checkpoint.lease_expires_at = now + timedelta(seconds=lease_seconds)
+        checkpoint.status = "PROCESSING"
+        checkpoint.updated_at = now
+        self._session.flush()
+        return True, checkpoint.lease_generation
+
+    def renew_lease(
+        self,
+        stream_id: str,
+        worker_id: str,
+        lease_generation: int,
+        lease_seconds: int = 60,
+    ) -> bool:
+        """Renews an active lease if still held by worker_id and matching lease_generation."""
+        stmt = (
+            select(IngestionCheckpointModel)
+            .where(IngestionCheckpointModel.stream_id == stream_id)
+            .with_for_update()
+        )
+        checkpoint = self._session.execute(stmt).scalar_one_or_none()
+        now = datetime.now(UTC)
+        if (
+            checkpoint is not None
+            and checkpoint.lease_owner == worker_id
+            and checkpoint.lease_generation == lease_generation
+            and checkpoint.lease_expires_at is not None
+            and checkpoint.lease_expires_at > now
+        ):
+            checkpoint.lease_expires_at = now + timedelta(seconds=lease_seconds)
+            checkpoint.updated_at = now
+            self._session.flush()
+            return True
+        return False
+
+    def release_lease(
+        self,
+        stream_id: str,
+        worker_id: str,
+        lease_generation: int,
+    ) -> bool:
+        """Releases the lease if held by worker_id with matching lease_generation, transitioning to IDLE.
+
+        Returns True if successfully released, False if lease was already lost or generation mismatched.
         """
         stmt = (
             select(IngestionCheckpointModel)
@@ -431,66 +566,18 @@ class CheckpointRepository:
         )
         checkpoint = self._session.execute(stmt).scalar_one_or_none()
         now = datetime.now(UTC)
-
-        if checkpoint is None:
-            start_time = default_start_time or now
-            checkpoint = IngestionCheckpointModel(
-                stream_id=stream_id,
-                last_processed_timestamp=start_time,
-                lease_owner=worker_id,
-                lease_expires_at=now + timedelta(seconds=lease_seconds),
-                status="RUNNING",
-            )
-            self._session.add(checkpoint)
-            self._session.flush()
-            return True
-
-        # Check eligibility: expired, owned by this worker, or idle/failed
-        is_expired = checkpoint.lease_expires_at is None or checkpoint.lease_expires_at <= now
-        is_owner = checkpoint.lease_owner == worker_id
-        is_free = checkpoint.lease_owner is None or checkpoint.status in ("IDLE", "FAILED")
-
-        if is_expired or is_owner or is_free:
-            checkpoint.lease_owner = worker_id
-            checkpoint.lease_expires_at = now + timedelta(seconds=lease_seconds)
-            checkpoint.status = "RUNNING"
-            checkpoint.updated_at = now
-            self._session.flush()
-            return True
-
-        return False
-
-    def renew_lease(self, stream_id: str, worker_id: str, lease_seconds: int = 60) -> bool:
-        """Renews an active lease if still held by worker_id."""
-        stmt = (
-            select(IngestionCheckpointModel)
-            .where(IngestionCheckpointModel.stream_id == stream_id)
-            .with_for_update()
-        )
-        checkpoint = self._session.execute(stmt).scalar_one_or_none()
-        now = datetime.now(UTC)
-        if checkpoint is not None and checkpoint.lease_owner == worker_id:
-            checkpoint.lease_expires_at = now + timedelta(seconds=lease_seconds)
-            checkpoint.updated_at = now
-            self._session.flush()
-            return True
-        return False
-
-    def release_lease(self, stream_id: str, worker_id: str) -> None:
-        """Releases the lease if held by worker_id, transitioning to IDLE."""
-        stmt = (
-            select(IngestionCheckpointModel)
-            .where(IngestionCheckpointModel.stream_id == stream_id)
-            .with_for_update()
-        )
-        checkpoint = self._session.execute(stmt).scalar_one_or_none()
-        now = datetime.now(UTC)
-        if checkpoint is not None and checkpoint.lease_owner == worker_id:
+        if (
+            checkpoint is not None
+            and checkpoint.lease_owner == worker_id
+            and checkpoint.lease_generation == lease_generation
+        ):
             checkpoint.lease_owner = None
             checkpoint.lease_expires_at = None
             checkpoint.status = "IDLE"
             checkpoint.updated_at = now
             self._session.flush()
+            return True
+        return False
 
     def advance_checkpoint(
         self,
@@ -499,11 +586,14 @@ class CheckpointRepository:
         last_id: str | None = None,
         processed_count: int = 0,
         worker_id: str | None = None,
+        lease_generation: int | None = None,
         lease_seconds: int = 60,
     ) -> IngestionCheckpointModel:
         """Advances the persistent checkpoint watermark and sequence.
 
-        Resets retry_count and clears last_error upon durable progress.
+        Validates that worker_id and lease_generation match the active lease row.
+        Raises StaleLeaseError if the worker's fencing token is stale, missing, or expired.
+        Resets retry_count and next_retry_at, and clears last_error upon durable progress.
         """
         stmt = (
             select(IngestionCheckpointModel)
@@ -515,22 +605,40 @@ class CheckpointRepository:
             raise RecordNotFoundError(f"Checkpoint for stream '{stream_id}' does not exist.")
 
         now = datetime.now(UTC)
-        if worker_id is not None and checkpoint.lease_owner != worker_id:
-            if checkpoint.lease_expires_at is not None and checkpoint.lease_expires_at > now:
-                raise PersistenceError(
-                    f"Cannot advance checkpoint: lease held by '{checkpoint.lease_owner}'."
-                )
+
+        # Validate fencing tokens
+        if worker_id is None or lease_generation is None:
+            raise StaleLeaseError(
+                f"Cannot advance checkpoint for stream '{stream_id}': "
+                "both worker_id and lease_generation are required fencing tokens."
+            )
+
+        if checkpoint.lease_owner != worker_id or checkpoint.lease_generation != lease_generation:
+            raise StaleLeaseError(
+                f"Stale lease for stream '{stream_id}': active owner is '{checkpoint.lease_owner}' "
+                f"(generation {checkpoint.lease_generation}), but caller provided owner '{worker_id}' "
+                f"(generation {lease_generation})."
+            )
+
+        if checkpoint.lease_expires_at is None or checkpoint.lease_expires_at < now:
+            expiry_str = (
+                checkpoint.lease_expires_at.isoformat() if checkpoint.lease_expires_at else "None"
+            )
+            raise StaleLeaseError(
+                f"Cannot advance checkpoint for stream '{stream_id}': "
+                f"lease is missing or expired (expires_at={expiry_str}, current time {now.isoformat()})."
+            )
 
         checkpoint.last_processed_timestamp = new_timestamp
         checkpoint.last_processed_id = last_id
         checkpoint.batch_sequence += 1
         checkpoint.events_processed_count += processed_count
         checkpoint.retry_count = 0
+        checkpoint.next_retry_at = None
         checkpoint.last_error = None
+        checkpoint.status = "PROCESSING"
         checkpoint.updated_at = now
-        if worker_id is not None:
-            checkpoint.lease_owner = worker_id
-            checkpoint.lease_expires_at = now + timedelta(seconds=lease_seconds)
+        checkpoint.lease_expires_at = now + timedelta(seconds=lease_seconds)
 
         self._session.flush()
         return checkpoint
@@ -539,10 +647,24 @@ class CheckpointRepository:
         self,
         stream_id: str,
         error: str,
+        worker_id: str | None = None,
+        lease_generation: int | None = None,
         max_retries: int = 5,
-        backoff_seconds: int = 10,
+        backoff_initial_seconds: float = 2.0,
+        backoff_factor: float = 2.0,
+        backoff_max_seconds: float = 60.0,
+        jitter_fn: Callable[[float], float] | None = None,
+        now: datetime | None = None,
+        backoff_seconds: float | None = None,
     ) -> IngestionCheckpointModel:
-        """Records a batch ingestion failure, increments retry count, and sets cooling-off backoff."""
+        """Records a batch ingestion failure, increments retry count, and schedules exponential backoff with jitter.
+
+        Requires worker_id and lease_generation matching the active row.
+        Raises StaleLeaseError if caller is stale or lease has expired.
+        Clears lease ownership and expiration.
+        If retry_count reaches max_retries, transitions to 'FAILED' with no next_retry_at.
+        Otherwise transitions to 'RETRYING' and sets next_retry_at.
+        """
         stmt = (
             select(IngestionCheckpointModel)
             .where(IngestionCheckpointModel.stream_id == stream_id)
@@ -552,43 +674,161 @@ class CheckpointRepository:
         if checkpoint is None:
             raise RecordNotFoundError(f"Checkpoint for stream '{stream_id}' does not exist.")
 
-        now = datetime.now(UTC)
+        current_now = now or datetime.now(UTC)
+
+        # Validate fencing tokens
+        if not worker_id or lease_generation is None:
+            raise StaleLeaseError(
+                f"Cannot record failure for stream '{stream_id}': "
+                "both worker_id and lease_generation are required fencing tokens."
+            )
+
+        if checkpoint.lease_owner != worker_id or checkpoint.lease_generation != lease_generation:
+            raise StaleLeaseError(
+                f"Stale lease failure report for stream '{stream_id}': active owner is '{checkpoint.lease_owner}' "
+                f"(generation {checkpoint.lease_generation}), but caller provided owner '{worker_id}' "
+                f"(generation {lease_generation})."
+            )
+
+        if checkpoint.lease_expires_at is None or checkpoint.lease_expires_at < current_now:
+            expiry_str = (
+                checkpoint.lease_expires_at.isoformat() if checkpoint.lease_expires_at else "None"
+            )
+            raise StaleLeaseError(
+                f"Cannot record failure for stream '{stream_id}': "
+                f"lease is missing or expired (expires_at={expiry_str}, current time {current_now.isoformat()})."
+            )
+
+        if backoff_seconds is not None:
+            backoff_initial_seconds = float(backoff_seconds)
+
         checkpoint.retry_count += 1
         checkpoint.last_error = error
-        checkpoint.status = "FAILED" if checkpoint.retry_count >= max_retries else "RETRYING"
         checkpoint.lease_owner = None
-        checkpoint.lease_expires_at = now + timedelta(seconds=backoff_seconds)
-        checkpoint.updated_at = now
+        checkpoint.lease_expires_at = None
+        checkpoint.updated_at = current_now
+
+        if checkpoint.retry_count >= max_retries:
+            checkpoint.status = "FAILED"
+            checkpoint.next_retry_at = None
+        else:
+            checkpoint.status = "RETRYING"
+            attempt = checkpoint.retry_count
+            base_delay = min(
+                backoff_max_seconds,
+                backoff_initial_seconds * (backoff_factor ** (attempt - 1)),
+            )
+            if jitter_fn is not None:
+                delay = jitter_fn(base_delay)
+            else:
+                jitter_factor = random.uniform(0.8, 1.2)
+                delay = min(backoff_max_seconds, base_delay * jitter_factor)
+
+            checkpoint.next_retry_at = current_now + timedelta(seconds=delay)
+
         self._session.flush()
         return checkpoint
 
-    def quarantine_events(
-        self, stream_id: str, dead_letters: list[dict[str, Any]]
-    ) -> list[DeadLetterEventModel]:
-        """Persists unprocessable or malformed events into dead_letter_events."""
-        records: list[DeadLetterEventModel] = []
+    def quarantine_events(self, stream_id: str, dead_letters: list[dict[str, Any]]) -> int:
+        """Persists unprocessable or malformed events into dead_letter_events idempotently.
+
+        Enforces 64 KiB maximum payload size per event (evaluated in UTF-8 bytes).
+        Uses PostgreSQL ON CONFLICT DO NOTHING for (stream_id, event_id) deduplication.
+        Returns the count of newly inserted quarantine records.
+        """
+        if not dead_letters:
+            return 0
+
+        records_to_insert: list[dict[str, Any]] = []
         for item in dead_letters:
-            payload = item.get("raw_payload", {})
+            raw_payload = item.get("raw_payload", {})
+            if isinstance(raw_payload, bytes):
+                payload_bytes = raw_payload
+                try:
+                    payload_dict = json.loads(raw_payload.decode("utf-8"))
+                except Exception:
+                    payload_dict = {"raw": raw_payload.decode("utf-8", errors="replace")}
+            elif isinstance(raw_payload, str):
+                payload_bytes = raw_payload.encode("utf-8")
+                try:
+                    payload_dict = json.loads(raw_payload)
+                except Exception:
+                    payload_dict = {"raw": raw_payload}
+            else:
+                payload_bytes = json.dumps(raw_payload, default=str).encode("utf-8")
+                payload_dict = raw_payload
+
+            if len(payload_bytes) > MAX_DEAD_LETTER_PAYLOAD_BYTES:
+                event_id = item.get("event_id", "<unspecified>")
+                raise ValueError(
+                    f"Dead-letter payload for event '{event_id}' exceeds 64 KiB limit "
+                    f"({len(payload_bytes)} bytes > {MAX_DEAD_LETTER_PAYLOAD_BYTES} bytes)."
+                )
+
             raw_hash = item.get("raw_event_hash")
             if not raw_hash:
                 raw_hash = hashlib.sha256(
-                    json.dumps(payload, sort_keys=True, default=str).encode()
+                    json.dumps(payload_dict, sort_keys=True, default=str).encode("utf-8")
                 ).hexdigest()
 
-            record = DeadLetterEventModel(
-                stream_id=stream_id,
-                event_id=item.get("event_id"),
-                raw_event_hash=raw_hash,
-                raw_payload=payload,
-                error_reason=item.get("error_reason", "UNKNOWN_ERROR"),
-                error_details=item.get("error_details"),
-                status=item.get("status", "QUARANTINED"),
+            records_to_insert.append(
+                {
+                    "stream_id": stream_id,
+                    "event_id": item.get("event_id"),
+                    "raw_event_hash": raw_hash,
+                    "raw_payload": payload_dict,
+                    "error_reason": item.get("error_reason", "UNKNOWN_ERROR"),
+                    "error_details": item.get("error_details"),
+                    "status": item.get("status", "QUARANTINED"),
+                }
             )
+
+        bind = None
+        try:
+            bind = self._session.get_bind()
+        except Exception:
+            pass
+        is_pg = (
+            bind is not None
+            and getattr(bind, "dialect", None) is not None
+            and bind.dialect.name == "postgresql"
+        )
+
+        if is_pg:
+            stmt = (
+                pg_insert(DeadLetterEventModel)
+                .values(records_to_insert)
+                .on_conflict_do_nothing(index_elements=["stream_id", "event_id"])
+                .returning(DeadLetterEventModel.id)
+            )
+            inserted_ids = self._session.execute(stmt).scalars().all()
+            self._session.flush()
+            return len(inserted_ids)
+
+        # Dialect fallback (SQLite / Mock session)
+        inserted_count = 0
+        seen_in_batch: set[str] = set()
+        for r in records_to_insert:
+            evt_id = r.get("event_id")
+            if evt_id is not None:
+                if evt_id in seen_in_batch:
+                    continue
+                seen_in_batch.add(evt_id)
+                exists = self._session.execute(
+                    select(DeadLetterEventModel).where(
+                        DeadLetterEventModel.stream_id == stream_id,
+                        DeadLetterEventModel.event_id == evt_id,
+                    )
+                ).scalar_one_or_none()
+                if exists is not None:
+                    continue
+
+            record = DeadLetterEventModel(**r)
             self._session.add(record)
-            records.append(record)
+            inserted_count += 1
 
         self._session.flush()
-        return records
+        return inserted_count
 
     def get_dead_letter_count(self, stream_id: str | None = None) -> int:
         """Returns the total number of quarantined dead-letter events."""

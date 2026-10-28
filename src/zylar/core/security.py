@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -36,7 +37,9 @@ class UserPrincipal(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    subject: str = Field(..., min_length=1, max_length=128, description="Authenticated subject identity")
+    subject: str = Field(
+        ..., min_length=1, max_length=128, description="Authenticated subject identity"
+    )
     role: Role = Field(..., description="Authorized role")
 
 
@@ -250,3 +253,170 @@ def require_roles(*allowed_roles: Role | str) -> Callable[..., UserPrincipal]:
         return principal
 
     return role_checker
+
+
+_URL_PASSWORD_RE = re.compile(r"([a-zA-Z][a-zA-Z0-9+.-]*://[^:]+:)([^@]+)(@)")
+_BEARER_TOKEN_RE = re.compile(r"(Bearer\s+)[A-Za-z0-9_\-\.]+", re.IGNORECASE)
+_KV_SECRET_RE = re.compile(
+    r"((?:password|passwd|secret|token|api_?key)\s*[=:]\s*)[^\s,;&]+", re.IGNORECASE
+)
+
+
+def _is_sensitive_key(key: str) -> bool:
+    normalized = re.sub(r"[_\-\s]", "", str(key)).lower()
+    return any(
+        p in normalized
+        for p in (
+            "password",
+            "passwd",
+            "secret",
+            "token",
+            "apikey",
+            "credential",
+            "privatekey",
+            "authorization",
+        )
+    )
+
+
+def _sanitize_string(s: str, max_str_len: int = 1024) -> str:
+    redacted = _URL_PASSWORD_RE.sub(r"\1***\3", s)
+    redacted = _BEARER_TOKEN_RE.sub(r"\1[REDACTED]", redacted)
+    redacted = _KV_SECRET_RE.sub(r"\1[REDACTED]", redacted)
+    suffix = "...[TRUNCATED]"
+    if len(redacted) > max_str_len:
+        prefix_len = max(0, max_str_len - len(suffix))
+        return redacted[:prefix_len] + suffix
+    return redacted
+
+
+def sanitize_audit_details(
+    data: Any,
+    max_depth: int = 5,
+    max_str_len: int = 1024,
+    current_depth: int = 0,
+) -> Any:
+    """Recursively sanitizes data structures to prevent secret leakage in audit logs.
+
+    Redacts credentials, API keys, tokens, and passwords in keys and strings,
+    truncates oversized string values, and bounds maximum recursion depth.
+    """
+    if current_depth >= max_depth:
+        return "[DEPTH_EXCEEDED]"
+
+    if isinstance(data, dict):
+        sanitized_dict: dict[str, Any] = {}
+        for k, v in data.items():
+            str_k = str(k)
+            if _is_sensitive_key(str_k):
+                sanitized_dict[str_k] = "[REDACTED]"
+            else:
+                sanitized_dict[str_k] = sanitize_audit_details(
+                    v,
+                    max_depth=max_depth,
+                    max_str_len=max_str_len,
+                    current_depth=current_depth + 1,
+                )
+        return sanitized_dict
+
+    if isinstance(data, (list, tuple, set)):
+        items = [
+            sanitize_audit_details(
+                item,
+                max_depth=max_depth,
+                max_str_len=max_str_len,
+                current_depth=current_depth + 1,
+            )
+            for item in data
+        ]
+        return items if isinstance(data, list) else type(data)(items)
+
+    if isinstance(data, str):
+        return _sanitize_string(data, max_str_len=max_str_len)
+
+    if hasattr(data, "model_dump") and callable(data.model_dump):
+        return sanitize_audit_details(
+            data.model_dump(mode="json"),
+            max_depth=max_depth,
+            max_str_len=max_str_len,
+            current_depth=current_depth,
+        )
+
+    return data
+
+
+class LoginThrottler:
+    """In-memory rate limiter and lockout mechanism for authentication attempts.
+
+    Enforces maximum failed attempts per IP address and per username over a sliding window.
+    """
+
+    def __init__(
+        self,
+        max_attempts: int = 5,
+        window_seconds: int = 300,
+        lockout_seconds: int = 900,
+    ) -> None:
+        self.max_attempts = max_attempts
+        self.window_seconds = window_seconds
+        self.lockout_seconds = lockout_seconds
+        self._failures: dict[str, list[datetime]] = {}
+        self._lockouts: dict[str, datetime] = {}
+
+    def is_locked(self, key: str) -> bool:
+        """Returns True if the key is currently locked out."""
+        now = datetime.now(UTC)
+        locked_until = self._lockouts.get(key)
+        if locked_until is not None:
+            if now < locked_until:
+                return True
+            del self._lockouts[key]
+            self._failures.pop(key, None)
+        return False
+
+    def check_rate_limit(self, key: str) -> None:
+        """Raises HTTP 429 if the key is currently locked out."""
+        if self.is_locked(key):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many failed authentication attempts. Please try again later.",
+                headers={"Retry-After": str(self.lockout_seconds)},
+            )
+
+    def record_failure(self, key: str) -> None:
+        """Records a failed authentication attempt, locking out if threshold exceeded."""
+        now = datetime.now(UTC)
+        cutoff = now - timedelta(seconds=self.window_seconds)
+        attempts = [t for t in self._failures.get(key, []) if t > cutoff]
+        attempts.append(now)
+        self._failures[key] = attempts
+
+        if len(attempts) >= self.max_attempts:
+            self._lockouts[key] = now + timedelta(seconds=self.lockout_seconds)
+            logger.warning(
+                "Authentication key '%s' locked out for %d seconds after %d failed attempts",
+                key,
+                self.lockout_seconds,
+                len(attempts),
+            )
+
+    def record_success(self, key: str) -> None:
+        """Clears failures and lockouts upon successful authentication."""
+        self._failures.pop(key, None)
+        self._lockouts.pop(key, None)
+
+    def reset(self) -> None:
+        """Clears all stored failures and lockouts (useful for test resets)."""
+        self._failures.clear()
+        self._lockouts.clear()
+
+
+_login_throttler: LoginThrottler | None = None
+
+
+def get_login_throttler() -> LoginThrottler:
+    """Returns the process-wide login throttler instance."""
+    global _login_throttler
+    if _login_throttler is None:
+        _login_throttler = LoginThrottler()
+    return _login_throttler

@@ -51,7 +51,13 @@ def calculate_risk_node(state: AgentState) -> dict[str, Any]:
 
     # Factor 3: Historical Recurrence (0-100 from PostgreSQL) using canonical entity identities
     ips = sorted({str(a["source_ip"]) for a in anomalies if a.get("source_ip")})
-    users = sorted({str(a.get("user") or a.get("username")) for a in anomalies if (a.get("user") or a.get("username"))})
+    users = sorted(
+        {
+            str(a.get("user") or a.get("username"))
+            for a in anomalies
+            if (a.get("user") or a.get("username"))
+        }
+    )
     historical_recurrence = get_historical_recurrence_factor(ips, users)
 
     # Factor 4: Graph Centrality (0-100 from state)
@@ -59,7 +65,9 @@ def calculate_risk_node(state: AgentState) -> dict[str, Any]:
 
     # Factor 5: Asset Criticality (0-100 heuristic based on validated destination ports)
     asset_criticality = 50  # Default baseline
-    target_ports = {int(a["destination_port"]) for a in anomalies if a.get("destination_port") is not None}
+    target_ports = {
+        int(a["destination_port"]) for a in anomalies if a.get("destination_port") is not None
+    }
     if 22 in target_ports or 3389 in target_ports:
         asset_criticality = 90  # High for SSH/RDP
     elif 443 in target_ports or 80 in target_ports:

@@ -7,7 +7,9 @@ from zylar.core.settings import Settings
 
 SYNTHETIC_KEY_32 = "synthetic-test-key-0123456789abcdef-32chars"
 SYNTHETIC_ADMIN_PWD = "synthetic-admin-pass-12345"
-SYNTHETIC_DB_URL = "postgresql+psycopg://synthetic_app:synthetic_db_pass_123@synthetic.internal:5432/zylar_test"
+SYNTHETIC_DB_URL = (
+    "postgresql+psycopg://synthetic_app:synthetic_db_pass_123@synthetic.internal:5432/zylar_test"
+)
 
 
 def test_default_settings_in_development():
@@ -20,6 +22,8 @@ def test_default_settings_in_development():
 def test_production_rejects_default_signing_key():
     with pytest.raises(ValidationError, match="ZYLAR_AUTH_SIGNING_KEY"):
         Settings(
+            _env_file=None,
+            auth_signing_key="replace-with-a-long-random-secret",
             environment="production",
             bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
             database_url=SYNTHETIC_DB_URL,

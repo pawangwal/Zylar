@@ -76,9 +76,15 @@ def test_verify_record_level_correspondence_detects_mismatch():
             )
             """
         )
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
         cur.execute(
             """
             INSERT INTO incidents VALUES (
@@ -96,7 +102,9 @@ def test_verify_record_level_correspondence_detects_mismatch():
         mock_session.execute.return_value.scalar_one_or_none.return_value = None
         mock_mgr.get_session.return_value.__enter__.return_value = mock_session
 
-        with pytest.raises(MigrationVerificationError, match="exists in SQLite but missing in PostgreSQL"):
+        with pytest.raises(
+            MigrationVerificationError, match="exists in SQLite but missing in PostgreSQL"
+        ):
             verify_record_level_correspondence(sqlite_path, mock_mgr)
     finally:
         _safe_unlink(sqlite_path)
@@ -126,9 +134,15 @@ def test_verify_record_level_correspondence_success():
             )
             """
         )
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
         cur.execute(
             """
             INSERT INTO incidents VALUES (
@@ -139,7 +153,9 @@ def test_verify_record_level_correspondence_success():
         )
         cur.execute("INSERT INTO ip_history VALUES ('192.168.1.10', 5, '2026-10-27T12:00:00Z', 75)")
         cur.execute("INSERT INTO user_history VALUES ('alice', 4, '2026-10-27T12:00:00Z', 75)")
-        cur.execute("INSERT INTO risk_history VALUES (1, '2026-10-27T12:00:00Z', 'ZYLAR-INC-OK-1', 75)")
+        cur.execute(
+            "INSERT INTO risk_history VALUES (1, '2026-10-27T12:00:00Z', 'ZYLAR-INC-OK-1', 75)"
+        )
         conn.commit()
         conn.close()
 
@@ -211,7 +227,9 @@ def test_verify_record_level_correspondence_success():
 
         mock_session.execute.side_effect = mock_execute
         mock_mgr.get_session.return_value.__enter__.return_value = mock_session
-        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = mock_conn_execute
+        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = (
+            mock_conn_execute
+        )
 
         manifest = verify_record_level_correspondence(sqlite_path, mock_mgr, mode="clean")
         assert manifest["status"] == "VERIFIED"
@@ -253,9 +271,15 @@ def test_migrate_sqlite_to_postgres_dry_run():
             )
             """
         )
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
         cur.execute(
             """
             INSERT INTO incidents VALUES (
@@ -302,15 +326,25 @@ def test_verify_record_level_correspondence_rejects_duplicate_risk_matching():
             )
             """
         )
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
         cur.execute(
             "INSERT INTO incidents VALUES ('ZYLAR-INC-DUP-1', '2026-10-27T12:00:00Z', 'Brute Force', 75, 'High', '[]', '{}', 1)"
         )
         # Two distinct SQLite risk rows with identical parent, score, and timestamp
-        cur.execute("INSERT INTO risk_history VALUES (1, '2026-10-27T12:00:00Z', 'ZYLAR-INC-DUP-1', 75)")
-        cur.execute("INSERT INTO risk_history VALUES (2, '2026-10-27T12:00:00Z', 'ZYLAR-INC-DUP-1', 75)")
+        cur.execute(
+            "INSERT INTO risk_history VALUES (1, '2026-10-27T12:00:00Z', 'ZYLAR-INC-DUP-1', 75)"
+        )
+        cur.execute(
+            "INSERT INTO risk_history VALUES (2, '2026-10-27T12:00:00Z', 'ZYLAR-INC-DUP-1', 75)"
+        )
         conn.commit()
         conn.close()
 
@@ -382,11 +416,19 @@ def test_verify_record_level_correspondence_rejects_unapproved_orphaned_records(
             )
             """
         )
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
         # Orphaned risk row referencing non-existent incident
-        cur.execute("INSERT INTO risk_history VALUES (99, '2026-10-27T12:00:00Z', 'ZYLAR-INC-NONEXISTENT', 80)")
+        cur.execute(
+            "INSERT INTO risk_history VALUES (99, '2026-10-27T12:00:00Z', 'ZYLAR-INC-NONEXISTENT', 80)"
+        )
         conn.commit()
         conn.close()
 
@@ -430,9 +472,15 @@ def test_verify_record_level_correspondence_tracks_transformed_records():
             )
             """
         )
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
         # Out-of-bounds score (150) and invalid JSON mitigation plan
         cur.execute(
             """
@@ -478,7 +526,9 @@ def test_verify_record_level_correspondence_tracks_transformed_records():
                 m.scalar.return_value = 0
             return m
 
-        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = mock_conn_execute
+        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = (
+            mock_conn_execute
+        )
 
         manifest = verify_record_level_correspondence(sqlite_path, mock_mgr, mode="clean")
         assert manifest["status"] == "VERIFIED"
@@ -503,11 +553,21 @@ def test_verify_clean_mode_rejects_target_only_records():
     try:
         conn = sqlite3.connect(str(sqlite_path))
         cur = conn.cursor()
-        cur.execute("CREATE TABLE incidents (incident_id TEXT PRIMARY KEY, timestamp TEXT, attack_classification TEXT, risk_score INTEGER, risk_category TEXT, mitigation_plan TEXT, threat_intel TEXT, anomalous_events_count INTEGER)")
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
-        cur.execute("INSERT INTO incidents VALUES ('ZYLAR-INC-1', '2026-10-27T12:00:00Z', 'Phishing', 50, 'Medium', '[]', '{}', 1)")
+        cur.execute(
+            "CREATE TABLE incidents (incident_id TEXT PRIMARY KEY, timestamp TEXT, attack_classification TEXT, risk_score INTEGER, risk_category TEXT, mitigation_plan TEXT, threat_intel TEXT, anomalous_events_count INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
+        cur.execute(
+            "INSERT INTO incidents VALUES ('ZYLAR-INC-1', '2026-10-27T12:00:00Z', 'Phishing', 50, 'Medium', '[]', '{}', 1)"
+        )
         conn.commit()
         conn.close()
 
@@ -544,10 +604,15 @@ def test_verify_clean_mode_rejects_target_only_records():
                 m.scalar.return_value = 0
             return m
 
-        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = mock_conn_execute
+        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = (
+            mock_conn_execute
+        )
 
         # Clean mode strictly requires target_only == 0
-        with pytest.raises(MigrationVerificationError, match="Clean import verification failed: target database contains 1 target-only records"):
+        with pytest.raises(
+            MigrationVerificationError,
+            match="Clean import verification failed: target database contains 1 target-only records",
+        ):
             verify_record_level_correspondence(sqlite_path, mock_mgr, mode="clean")
 
         # Merge mode permits target-only records, classifying and inventorying them
@@ -555,7 +620,9 @@ def test_verify_clean_mode_rejects_target_only_records():
         assert manifest["status"] == "VERIFIED"
         assert manifest["counts"]["target_only"] == 1
         assert manifest["target_only"]["incidents_count"] == 1
-        assert manifest["target_only"]["sample_target_only_incident_ids"] == ["TARGET-ONLY-INCIDENT"]
+        assert manifest["target_only"]["sample_target_only_incident_ids"] == [
+            "TARGET-ONLY-INCIDENT"
+        ]
     finally:
         _safe_unlink(sqlite_path)
 
@@ -571,12 +638,22 @@ def test_verify_record_level_correspondence_detects_status_mismatch():
     try:
         conn = sqlite3.connect(str(sqlite_path))
         cur = conn.cursor()
-        cur.execute("CREATE TABLE incidents (incident_id TEXT PRIMARY KEY, timestamp TEXT, attack_classification TEXT, risk_score INTEGER, risk_category TEXT, mitigation_plan TEXT, threat_intel TEXT, anomalous_events_count INTEGER, status TEXT)")
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
+        cur.execute(
+            "CREATE TABLE incidents (incident_id TEXT PRIMARY KEY, timestamp TEXT, attack_classification TEXT, risk_score INTEGER, risk_category TEXT, mitigation_plan TEXT, threat_intel TEXT, anomalous_events_count INTEGER, status TEXT)"
+        )
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
         # SQLite has status 'resolved'
-        cur.execute("INSERT INTO incidents VALUES ('ZYLAR-INC-STAT', '2026-10-27T12:00:00Z', 'Malware', 60, 'Medium', '[]', '{}', 1, 'resolved')")
+        cur.execute(
+            "INSERT INTO incidents VALUES ('ZYLAR-INC-STAT', '2026-10-27T12:00:00Z', 'Malware', 60, 'Medium', '[]', '{}', 1, 'resolved')"
+        )
         conn.commit()
         conn.close()
 
@@ -613,7 +690,9 @@ def test_verify_record_level_correspondence_detects_status_mismatch():
                 m.scalar.return_value = 0
             return m
 
-        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = mock_conn_execute
+        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = (
+            mock_conn_execute
+        )
 
         with pytest.raises(MigrationVerificationError, match="status mismatch"):
             verify_record_level_correspondence(sqlite_path, mock_mgr, mode="merge")
@@ -632,10 +711,18 @@ def test_verify_record_level_correspondence_detects_ip_risk_score_mismatch():
     try:
         conn = sqlite3.connect(str(sqlite_path))
         cur = conn.cursor()
-        cur.execute("CREATE TABLE incidents (incident_id TEXT PRIMARY KEY, timestamp TEXT, attack_classification TEXT, risk_score INTEGER, risk_category TEXT, mitigation_plan TEXT, threat_intel TEXT, anomalous_events_count INTEGER)")
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
+        cur.execute(
+            "CREATE TABLE incidents (incident_id TEXT PRIMARY KEY, timestamp TEXT, attack_classification TEXT, risk_score INTEGER, risk_category TEXT, mitigation_plan TEXT, threat_intel TEXT, anomalous_events_count INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
         cur.execute("INSERT INTO ip_history VALUES ('10.10.10.10', 3, '2026-10-27T12:00:00Z', 85)")
         conn.commit()
         conn.close()
@@ -665,7 +752,9 @@ def test_verify_record_level_correspondence_detects_ip_risk_score_mismatch():
                 m.scalar.return_value = 0
             return m
 
-        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = mock_conn_execute
+        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = (
+            mock_conn_execute
+        )
 
         with pytest.raises(MigrationVerificationError, match="last_risk_score mismatch"):
             verify_record_level_correspondence(sqlite_path, mock_mgr, mode="merge")
@@ -684,11 +773,21 @@ def test_verify_only_performs_no_writes():
     try:
         conn = sqlite3.connect(str(sqlite_path))
         cur = conn.cursor()
-        cur.execute("CREATE TABLE incidents (incident_id TEXT PRIMARY KEY, timestamp TEXT, attack_classification TEXT, risk_score INTEGER, risk_category TEXT, mitigation_plan TEXT, threat_intel TEXT, anomalous_events_count INTEGER)")
-        cur.execute("CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)")
-        cur.execute("CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)")
-        cur.execute("INSERT INTO incidents VALUES ('ZYLAR-INC-RO', '2026-10-27T12:00:00Z', 'Probe', 20, 'Low', '[]', '{}', 1)")
+        cur.execute(
+            "CREATE TABLE incidents (incident_id TEXT PRIMARY KEY, timestamp TEXT, attack_classification TEXT, risk_score INTEGER, risk_category TEXT, mitigation_plan TEXT, threat_intel TEXT, anomalous_events_count INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE ip_history (ip_address TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE user_history (username TEXT PRIMARY KEY, offense_count INTEGER, last_seen TEXT, last_risk_score INTEGER)"
+        )
+        cur.execute(
+            "CREATE TABLE risk_history (id INTEGER PRIMARY KEY, timestamp TEXT, incident_id TEXT, risk_score INTEGER)"
+        )
+        cur.execute(
+            "INSERT INTO incidents VALUES ('ZYLAR-INC-RO', '2026-10-27T12:00:00Z', 'Probe', 20, 'Low', '[]', '{}', 1)"
+        )
         conn.commit()
         conn.close()
 
@@ -724,7 +823,9 @@ def test_verify_only_performs_no_writes():
                 m.scalar.return_value = 0
             return m
 
-        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = mock_conn_execute
+        mock_mgr.engine.connect.return_value.__enter__.return_value.execute.side_effect = (
+            mock_conn_execute
+        )
 
         verify_record_level_correspondence(sqlite_path, mock_mgr, mode="clean")
 

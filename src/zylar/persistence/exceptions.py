@@ -41,3 +41,9 @@ class ConcurrencyError(PersistenceError):
     """Raised when a concurrent transaction conflict or serialization failure occurs."""
 
     pass
+
+
+class StaleLeaseError(PersistenceError):
+    """Raised when a worker attempts to mutate or advance a checkpoint with a stale lease or generation mismatch."""
+
+    pass

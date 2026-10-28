@@ -25,6 +25,15 @@ st.title("🛡️ ZYLAR v2 – Autonomous Self-Evolving SOC AI System")
 st.sidebar.markdown("### 🤖 Autonomous Mode: **ACTIVE**")
 st.sidebar.markdown(f"*Last refresh: {time.strftime('%H:%M:%S')}*")
 st.sidebar.markdown("---")
+
+
+def escape_dot_identifier(val: str) -> str:
+    """Escapes backslashes, double quotes, and newlines for safe Graphviz DOT interpolation."""
+    if not val:
+        return ""
+    return val.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+
+
 def get_auth_token() -> str:
     if "auth_token" in st.session_state and st.session_state["auth_token"]:
         return st.session_state["auth_token"]
@@ -213,7 +222,7 @@ with tab3:
                 dot += '  node [style="filled", fontname="Arial", shape="box", fillcolor="#444444", fontcolor="white", rounded="true"];\n'
                 dot += '  edge [color="#888888"];\n'
                 for u, v in G.edges():
-                    dot += f'  "{u}" -- "{v}";\n'
+                    dot += f'  "{escape_dot_identifier(str(u))}" -- "{escape_dot_identifier(str(v))}";\n'
                 dot += "}"
 
                 st.graphviz_chart(dot)

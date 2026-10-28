@@ -98,7 +98,11 @@ def test_check_connection_failure_raises_sanitized_connection_error():
     )
     mgr = DatabaseManager(settings)
 
-    with patch.object(mgr.engine, "connect", side_effect=OperationalError("SELECT 1", {}, Exception("super_secret_pass auth fail"))):
+    with patch.object(
+        mgr.engine,
+        "connect",
+        side_effect=OperationalError("SELECT 1", {}, Exception("super_secret_pass auth fail")),
+    ):
         with pytest.raises(DatabaseConnectionError) as exc_info:
             mgr.check_connection()
         assert "super_secret_pass" not in str(exc_info.value)

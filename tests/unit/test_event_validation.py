@@ -217,7 +217,9 @@ def test_workflow_request_rejects_501_events():
     ]
     with pytest.raises(ValidationError) as exc:
         WorkflowRequest(events=events)
-    assert "List should have at most 500 items" in str(exc.value) or "exceeds maximum limit" in str(exc.value)
+    assert "List should have at most 500 items" in str(exc.value) or "exceeds maximum limit" in str(
+        exc.value
+    )
 
 
 def test_workflow_request_rejects_501_raw_logs():
@@ -250,7 +252,6 @@ def test_workflow_request_rejects_malformed_event_in_batch():
     with pytest.raises(ValidationError) as exc:
         WorkflowRequest.model_validate({"events": raw_logs})
     assert "Malformed ISO timestamp" in str(exc.value)
-
 
 
 def test_response_models():

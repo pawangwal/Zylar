@@ -42,10 +42,11 @@ def check_postgres_availability() -> tuple[bool, str]:
         return False, str(exc)
 
 
-_IS_STRICT = (
-    os.environ.get("ZYLAR_REQUIRE_POSTGRES", "").strip().lower() in ("1", "true", "yes")
-    or os.environ.get("CI", "").strip().lower() in ("1", "true", "yes")
-)
+_IS_STRICT = os.environ.get("ZYLAR_REQUIRE_POSTGRES", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+) or os.environ.get("CI", "").strip().lower() in ("1", "true", "yes")
 _PG_AVAILABLE, _PG_ERROR = check_postgres_availability()
 
 pytestmark = pytest.mark.skipif(
@@ -99,12 +100,8 @@ def clean_postgres_test_data(db_manager):
                         "DELETE FROM ip_history WHERE ip_address IN ('198.51.100.10', '198.51.100.55', '198.51.100.77', '198.51.100.99') OR ip_address LIKE '203.0.113.%'"
                     )
                 )
-                conn.execute(
-                    text("DELETE FROM user_history WHERE username LIKE 'test_user_%'")
-                )
-                conn.execute(
-                    text("DELETE FROM dead_letter_events WHERE stream_id LIKE 'test-%'")
-                )
+                conn.execute(text("DELETE FROM user_history WHERE username LIKE 'test_user_%'"))
+                conn.execute(text("DELETE FROM dead_letter_events WHERE stream_id LIKE 'test-%'"))
                 conn.execute(
                     text("DELETE FROM ingestion_checkpoints WHERE stream_id LIKE 'test-%'")
                 )
@@ -125,17 +122,21 @@ def make_test_incident(
     event_refs: list[EventRefData] | None = None,
 ) -> IncidentCreate:
     now = datetime.now(UTC)
-    refs = event_refs if event_refs is not None else [
-        EventRefData(
-            event_source="zeek",
-            source_event_id=f"evt-{key_suffix}",
-            raw_event_hash=f"hash-{key_suffix}",
-            event_timestamp=now,
-            source_ip=ip,
-            destination_port=443,
-            user_identifier=user,
-        )
-    ]
+    refs = (
+        event_refs
+        if event_refs is not None
+        else [
+            EventRefData(
+                event_source="zeek",
+                source_event_id=f"evt-{key_suffix}",
+                raw_event_hash=f"hash-{key_suffix}",
+                event_timestamp=now,
+                source_ip=ip,
+                destination_port=443,
+                user_identifier=user,
+            )
+        ]
+    )
     return IncidentCreate(
         incident_id=f"ZYLAR-INC-TEST-{key_suffix.upper()}",
         idempotency_key=f"test-idemp-{key_suffix}",
@@ -143,7 +144,9 @@ def make_test_incident(
         attack_classification=classification,
         risk_score=risk_score,
         risk_category="High" if risk_score >= 70 else "Medium",
-        mitigation_plan=mitigation_plan if mitigation_plan is not None else ["Isolate host", "Revoke credentials"],
+        mitigation_plan=mitigation_plan
+        if mitigation_plan is not None
+        else ["Isolate host", "Revoke credentials"],
         threat_intel=threat_intel if threat_intel is not None else {"ttp": "T1110"},
         anomalous_events_count=len(refs),
         status="NEW",
@@ -355,9 +358,14 @@ def test_postgres_idempotency_replay_does_not_increment_recurrence(session_facto
         user_row1 = session.execute(
             select(UserHistoryModel).where(UserHistoryModel.username == "test_user_1")
         ).scalar_one()
-        risk_count1 = session.execute(
-            select(func.count(RiskHistoryModel.id)).where(RiskHistoryModel.incident_id == res1.incident.id)
-        ).scalar() or 0
+        risk_count1 = (
+            session.execute(
+                select(func.count(RiskHistoryModel.id)).where(
+                    RiskHistoryModel.incident_id == res1.incident.id
+                )
+            ).scalar()
+            or 0
+        )
         ip_offenses_1 = ip_row1.offense_count
         user_offenses_1 = user_row1.offense_count
     finally:
@@ -378,9 +386,14 @@ def test_postgres_idempotency_replay_does_not_increment_recurrence(session_facto
         user_row2 = session.execute(
             select(UserHistoryModel).where(UserHistoryModel.username == "test_user_1")
         ).scalar_one()
-        risk_count2 = session.execute(
-            select(func.count(RiskHistoryModel.id)).where(RiskHistoryModel.incident_id == res1.incident.id)
-        ).scalar() or 0
+        risk_count2 = (
+            session.execute(
+                select(func.count(RiskHistoryModel.id)).where(
+                    RiskHistoryModel.incident_id == res1.incident.id
+                )
+            ).scalar()
+            or 0
+        )
 
         assert ip_row2.offense_count == ip_offenses_1
         assert user_row2.offense_count == user_offenses_1
@@ -406,11 +419,15 @@ def test_postgres_uow_atomic_rollback_on_failure(session_factory):
         assert repo.get_by_incident_id(dto.incident_id) is None
 
         # Verify no orphan event refs
-        orphans = session.execute(
-            select(IncidentEventRefModel).where(
-                IncidentEventRefModel.source_event_id == f"evt-{suffix}"
+        orphans = (
+            session.execute(
+                select(IncidentEventRefModel).where(
+                    IncidentEventRefModel.source_event_id == f"evt-{suffix}"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(orphans) == 0
     finally:
         session.close()
@@ -729,9 +746,14 @@ def test_postgres_idempotency_replay_does_not_increment_audit_records(session_fa
 
     session = session_factory()
     try:
-        audit_count_before = session.execute(
-            select(func.count(AuditLogModel.id)).where(AuditLogModel.incident_id == res1.incident.id)
-        ).scalar() or 0
+        audit_count_before = (
+            session.execute(
+                select(func.count(AuditLogModel.id)).where(
+                    AuditLogModel.incident_id == res1.incident.id
+                )
+            ).scalar()
+            or 0
+        )
         assert audit_count_before > 0
     finally:
         session.close()
@@ -743,9 +765,14 @@ def test_postgres_idempotency_replay_does_not_increment_audit_records(session_fa
 
     session = session_factory()
     try:
-        audit_count_after = session.execute(
-            select(func.count(AuditLogModel.id)).where(AuditLogModel.incident_id == res1.incident.id)
-        ).scalar() or 0
+        audit_count_after = (
+            session.execute(
+                select(func.count(AuditLogModel.id)).where(
+                    AuditLogModel.incident_id == res1.incident.id
+                )
+            ).scalar()
+            or 0
+        )
         assert audit_count_after == audit_count_before
     finally:
         session.close()

@@ -47,10 +47,11 @@ def check_postgres_availability() -> tuple[bool, str]:
         return False, str(exc)
 
 
-_IS_STRICT = (
-    os.environ.get("ZYLAR_REQUIRE_POSTGRES", "").strip().lower() in ("1", "true", "yes")
-    or os.environ.get("CI", "").strip().lower() in ("1", "true", "yes")
-)
+_IS_STRICT = os.environ.get("ZYLAR_REQUIRE_POSTGRES", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+) or os.environ.get("CI", "").strip().lower() in ("1", "true", "yes")
 _PG_AVAILABLE, _PG_ERROR = check_postgres_availability()
 
 pytestmark = pytest.mark.skipif(
@@ -95,11 +96,13 @@ def test_workflow_persists_incident_and_evidence_to_postgres(isolated_reports: P
         elif "Threat Intelligence" in prompt:
             return {
                 "message": {
-                    "content": json.dumps({
-                        "summary": "SSH brute force detected.",
-                        "attacker_ips": ["198.51.100.22"],
-                        "targeted_users": ["root"],
-                    })
+                    "content": json.dumps(
+                        {
+                            "summary": "SSH brute force detected.",
+                            "attacker_ips": ["198.51.100.22"],
+                            "targeted_users": ["root"],
+                        }
+                    )
                 }
             }
         else:
@@ -137,18 +140,28 @@ def test_workflow_persists_incident_and_evidence_to_postgres(isolated_reports: P
         assert incident.anomalous_events_count == len(final_state.get("anomalies", []))
 
         # 2. Constituent event references
-        event_refs = session.execute(
-            select(IncidentEventRefModel).where(IncidentEventRefModel.incident_id == incident.id)
-        ).scalars().all()
+        event_refs = (
+            session.execute(
+                select(IncidentEventRefModel).where(
+                    IncidentEventRefModel.incident_id == incident.id
+                )
+            )
+            .scalars()
+            .all()
+        )
         assert len(event_refs) > 0
         for ref in event_refs:
             assert ref.event_source is not None
             assert len(ref.raw_event_hash) == 64
 
         # 3. Risk history
-        risk_hist = session.execute(
-            select(RiskHistoryModel).where(RiskHistoryModel.incident_id == incident.id)
-        ).scalars().all()
+        risk_hist = (
+            session.execute(
+                select(RiskHistoryModel).where(RiskHistoryModel.incident_id == incident.id)
+            )
+            .scalars()
+            .all()
+        )
         assert len(risk_hist) >= 1
         assert risk_hist[0].risk_score == incident.risk_score
 
@@ -176,9 +189,13 @@ def test_workflow_persists_incident_and_evidence_to_postgres(isolated_reports: P
 
     with get_session() as session:
         # Incident count for this idempotency key should still be exactly 1
-        matching_incidents = session.execute(
-            select(IncidentModel).where(IncidentModel.idempotency_key == stable_idempotency_key)
-        ).scalars().all()
+        matching_incidents = (
+            session.execute(
+                select(IncidentModel).where(IncidentModel.idempotency_key == stable_idempotency_key)
+            )
+            .scalars()
+            .all()
+        )
         assert len(matching_incidents) == 1
 
         # Offense count should NOT have incremented on idempotent replay
@@ -187,7 +204,6 @@ def test_workflow_persists_incident_and_evidence_to_postgres(isolated_reports: P
         ).scalar_one_or_none()
         assert recheck_offender is not None
         assert recheck_offender.offense_count == initial_offense_count
-
 
 
 def test_risk_calculation_queries_postgres_offender_recurrence():
@@ -306,9 +322,13 @@ def test_workflow_deterministic_idempotency_without_upstream_key(isolated_report
 
     # Verify database state
     with get_session() as session:
-        matching = session.execute(
-            select(IncidentModel).where(IncidentModel.idempotency_key == derived_key)
-        ).scalars().all()
+        matching = (
+            session.execute(
+                select(IncidentModel).where(IncidentModel.idempotency_key == derived_key)
+            )
+            .scalars()
+            .all()
+        )
         assert len(matching) == 1
         assert matching[0].incident_id == inc_id_1
 

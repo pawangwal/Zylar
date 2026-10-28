@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 import ollama
 
@@ -6,7 +7,7 @@ from agents.state import AgentState
 from zylar.core.settings import get_settings
 
 
-def generate_mitigation_node(state: AgentState) -> dict:
+def generate_mitigation_node(state: AgentState) -> dict[str, Any]:
     """Generates an action plan to mitigate the threat."""
     classification = state.get("attack_classification", "None")
     risk_score = state.get("risk_score", 0)

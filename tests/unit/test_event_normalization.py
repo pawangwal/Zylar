@@ -99,7 +99,6 @@ def test_event_identity_precedence_tier4_generated_uuid():
     assert event_a.event_id != event_b.event_id
 
 
-
 def test_normalize_direct_dictionary_with_legacy_username():
     raw = {
         "event_id": "direct-001",
@@ -161,4 +160,7 @@ def test_normalize_batch_segregation():
     assert "Invalid IP address" in result.quarantined[0]["error_reason"]
 
     assert result.quarantined[1]["batch_index"] == 2
-    assert "Field required" in result.quarantined[1]["error_reason"] or "timestamp" in result.quarantined[1]["error_reason"]
+    assert (
+        "Field required" in result.quarantined[1]["error_reason"]
+        or "timestamp" in result.quarantined[1]["error_reason"]
+    )

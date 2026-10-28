@@ -29,10 +29,14 @@ class TestAnomalyAgent(unittest.TestCase):
         # Normal behavior
         for i in range(50):
             for _ in range(10):
-                events.append({"source_ip": f"192.168.1.{i}", "status": "success", "event_type": "web_access"})
+                events.append(
+                    {"source_ip": f"192.168.1.{i}", "status": "success", "event_type": "web_access"}
+                )
         # Anomalous behavior (Brute force from single IP)
         for _ in range(15):
-            events.append({"source_ip": "10.0.0.99", "status": "failed", "event_type": "authentication"})
+            events.append(
+                {"source_ip": "10.0.0.99", "status": "failed", "event_type": "authentication"}
+            )
 
         state = {"parsed_events": events}
         result = detect_anomalies_node(state)
@@ -41,5 +45,6 @@ class TestAnomalyAgent(unittest.TestCase):
         self.assertTrue(len(result["anomalies"]) > 0)
         self.assertEqual(result["anomalies"][0]["source_ip"], "10.0.0.99")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

@@ -12,8 +12,6 @@ from typing import Annotated, Any
 
 import anyio
 import ollama
-from agents.anomaly_agent import detect_anomalies_node
-from agents.log_analyzer import analyze_logs_node
 from apscheduler.schedulers.background import BackgroundScheduler
 from elasticsearch import Elasticsearch
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
@@ -29,8 +27,10 @@ from zylar.core.security import (
     UserPrincipal,
     create_access_token,
     get_current_user,
+    get_login_throttler,
     get_user_store,
     require_roles,
+    sanitize_audit_details,
 )
 from zylar.core.settings import get_settings
 from zylar.domain.workflow import WorkflowRequest
@@ -149,11 +149,17 @@ async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     corr_id = getattr(request.state, "correlation_id", f"req-{uuid.uuid4().hex[:12]}")
+    sanitized_errors = []
+    for err in exc.errors():
+        err_dict = dict(err)
+        # Scrub raw input to prevent secret or password reflection
+        err_dict.pop("input", None)
+        sanitized_errors.append(err_dict)
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "error": "Validation Error",
-            "details": jsonable_encoder(exc.errors()),
+            "details": jsonable_encoder(sanitized_errors),
             "correlation_id": corr_id,
         },
         headers={"X-Correlation-ID": corr_id},
@@ -184,16 +190,28 @@ class TokenResponse(BaseModel):
 
 
 @app.post("/api/auth/token", response_model=TokenResponse)
-async def login_for_access_token(req: TokenRequest) -> TokenResponse:
+async def login_for_access_token(req: TokenRequest, request: Request) -> TokenResponse:
     """Authenticates against the trusted identity store and returns a signed access token."""
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    throttler = get_login_throttler()
+
+    # Check both IP and user throttles before authenticating
+    throttler.check_rate_limit(f"ip:{client_ip}")
+    throttler.check_rate_limit(f"user:{req.username}")
+
     user_store = get_user_store()
     principal = user_store.authenticate(req.username, req.password)
     if not principal:
+        throttler.record_failure(f"ip:{client_ip}")
+        throttler.record_failure(f"user:{req.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    throttler.record_success(f"ip:{client_ip}")
+    throttler.record_success(f"user:{req.username}")
 
     token = create_access_token(principal.subject, principal.role)
     return TokenResponse(
@@ -262,6 +280,7 @@ async def health_ready(request: Request, response: Response) -> dict[str, Any]:
 
     # 3. Check Ollama (degraded optional dependency)
     try:
+
         def check_ollama() -> bool:
             client = ollama.Client(host=str(settings.ollama_url), timeout=2.0)
             client.list()
@@ -328,7 +347,7 @@ async def get_ingestion_status(
             "lag_seconds": lag,
             "dead_letters_count": dead_letters,
             "retry_count": cp.retry_count,
-            "last_error": cp.last_error,
+            "last_error": sanitize_audit_details(cp.last_error) if cp.last_error else None,
         }
 
     return await anyio.to_thread.run_sync(query_status)
@@ -375,11 +394,7 @@ async def get_recent_logs(
         now = datetime.now(UTC)
         past = now - timedelta(minutes=minutes)
         query = {
-            "query": {
-                "range": {
-                    "timestamp": {"gte": past.isoformat(), "lte": now.isoformat()}
-                }
-            },
+            "query": {"range": {"timestamp": {"gte": past.isoformat(), "lte": now.isoformat()}}},
             "size": 1000,
             "sort": [{"timestamp": {"order": "desc"}}],
         }
@@ -402,6 +417,7 @@ async def get_reports(
     current_user: Annotated[UserPrincipal, Depends(get_current_user)],
 ) -> dict[str, Any]:
     """Fetches generated incident reports for authenticated users."""
+
     def read_reports() -> list[dict[str, Any]]:
         loaded: list[dict[str, Any]] = []
         if os.path.exists(REPORTS_DIR):
@@ -451,4 +467,3 @@ async def get_offenders(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to retrieve offender statistics from storage backend.",
         ) from exc
-

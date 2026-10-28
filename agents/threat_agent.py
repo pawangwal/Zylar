@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 import ollama
 
@@ -6,7 +7,7 @@ from agents.state import AgentState
 from zylar.core.settings import get_settings
 
 
-def extract_threat_intel_node(state: AgentState) -> dict:
+def extract_threat_intel_node(state: AgentState) -> dict[str, Any]:
     """Uses LLM to evaluate the TTPs from the anomalous events."""
     anomalies = state.get("anomalies", [])
     if not anomalies:

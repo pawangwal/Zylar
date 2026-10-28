@@ -101,8 +101,8 @@ Based on the following threat intel and anomalous events, classify the attack in
 
 Threat Intel: {json.dumps(intel, default=str)}
 Number of Anomalous Events: {len(anomalies)}
-Sample anomaly details: {[a.get('details') for a in anomalies[:3]]}
-Targeted ports: {list({a.get('destination_port') for a in anomalies if a.get('destination_port')})[:10]}
+Sample anomaly details: {[a.get("details") for a in anomalies[:3]]}
+Targeted ports: {list({a.get("destination_port") for a in anomalies if a.get("destination_port")})[:10]}
 
 Respond ONLY in valid JSON format with the key "category". Example: {{"category": "Brute Force"}}"""
 
@@ -134,7 +134,14 @@ Respond ONLY in valid JSON format with the key "category". Example: {{"category"
         validated_result = AttackClassificationResult.model_validate(parsed_json)
         classification = validated_result.category.value
 
-    except (ollama.ResponseError, ConnectionError, OSError, json.JSONDecodeError, ValidationError, Exception) as exc:
+    except (
+        ollama.ResponseError,
+        ConnectionError,
+        OSError,
+        json.JSONDecodeError,
+        ValidationError,
+        Exception,
+    ) as exc:
         logger.warning(
             "Local Ollama classification failed or malformed (%s), activating deterministic fallback: %s",
             type(exc).__name__,

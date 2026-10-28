@@ -36,7 +36,9 @@ def parse_event_timestamp(ts_val: Any, event_id: str | None = None) -> datetime.
     """
     if ts_val is None or (isinstance(ts_val, str) and not ts_val.strip()):
         context = f" for event '{event_id}'" if event_id else ""
-        raise ValueError(f"Event timestamp is missing or empty{context}; cannot fabricate current time.")
+        raise ValueError(
+            f"Event timestamp is missing or empty{context}; cannot fabricate current time."
+        )
 
     if isinstance(ts_val, str):
         s = ts_val.strip()
@@ -113,8 +115,78 @@ def compute_canonical_event_signature(
     return f"{event_src}:{source_event_id}:{raw_hash}:{ts_str}:{sip}:{dport}:{user}"
 
 
+def save_report_artifacts(
+    report_content: dict[str, Any], mitigation_plan: list[str] | None = None
+) -> None:
+    """Saves JSON and PDF report artifacts to REPORTS_DIR without database coupling."""
+    authoritative_id = report_content.get("incident_id", "UNKNOWN")
+    timestamp_str = str(report_content.get("timestamp", ""))
+    attack_classification = str(report_content.get("attack_classification", ""))
+    risk_score = report_content.get("risk_score", 0)
+    risk_category = str(report_content.get("risk_category", ""))
+    steps = mitigation_plan or report_content.get("mitigation_plan") or []
+
+    # 1. Save JSON report artifact
+    try:
+        json_path = REPORTS_DIR / f"{authoritative_id}.json"
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(report_content, f, indent=4)
+    except Exception as exc:
+        logger.warning("Failed to write JSON report artifact for %s: %s", authoritative_id, exc)
+
+    # 2. Save PDF report artifact (failures do not compromise database state)
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("helvetica", size=12)
+
+        pdf.cell(
+            200, 10, text="ZYLAR INCIDENT REPORT", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C"
+        )
+        pdf.cell(
+            200,
+            10,
+            text=f"Incident ID: {authoritative_id}",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+            align="L",
+        )
+        pdf.cell(
+            200, 10, text=f"Time: {timestamp_str}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L"
+        )
+        pdf.cell(
+            200,
+            10,
+            text=f"Classification: {attack_classification}",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+            align="L",
+        )
+        pdf.cell(
+            200,
+            10,
+            text=f"Risk: {risk_score} ({risk_category})",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+            align="L",
+        )
+
+        pdf.cell(200, 10, text="Mitigation Plan:", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
+        for step in steps:
+            pdf.cell(200, 10, text=f"- {step}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
+
+        pdf_path = REPORTS_DIR / f"{authoritative_id}.pdf"
+        pdf.output(str(pdf_path))
+    except Exception as exc:
+        logger.warning(
+            "Failed to render PDF report artifact for %s: %s",
+            authoritative_id,
+            type(exc).__name__,
+        )
+
+
 def generate_report_node(state: AgentState) -> dict[str, Any]:
-    """Generates the final incident report as JSON/PDF and atomically persists to PostgreSQL."""
+    """Generates the final incident report as JSON/PDF and optionally defers database persistence."""
     if state.get("attack_classification") == "None":
         return {"incident_id": "None", "report_content": {}}
 
@@ -133,7 +205,11 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
         event_ts = parse_event_timestamp(a.get("timestamp"), event_id=source_event_id)
         source_ip = str(a["source_ip"]).strip() if a.get("source_ip") else None
         dest_port = int(a["destination_port"]) if a.get("destination_port") is not None else None
-        user_id = str(a.get("user") or a.get("username")).strip() if (a.get("user") or a.get("username")) else None
+        user_id = (
+            str(a.get("user") or a.get("username")).strip()
+            if (a.get("user") or a.get("username"))
+            else None
+        )
 
         sig = compute_canonical_event_signature(
             event_src=event_src,
@@ -163,7 +239,9 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
     if not idempotency_key:
         if canonical_signatures:
             canonical_signatures.sort()
-            sig_digest = hashlib.sha256("||".join(canonical_signatures).encode("utf-8")).hexdigest()[:24]
+            sig_digest = hashlib.sha256(
+                "||".join(canonical_signatures).encode("utf-8")
+            ).hexdigest()[:24]
             classification = str(state.get("attack_classification") or "Unknown")
             idempotency_key = f"batch:{classification}:{sig_digest}"
         else:
@@ -174,7 +252,7 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
                 idempotency_key,
             )
 
-    # 3. Build DTO and persist incident lifecycle atomically
+    # 3. Build validated DTO
     raw_threat = state.get("threat_intel")
     if isinstance(raw_threat, dict):
         threat_dict = raw_threat
@@ -199,6 +277,30 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
         correlation_id=str(state.get("correlation_id") or ""),
     )
 
+    # If persistence is deferred (e.g. caller manages atomic boundary with checkpoint),
+    # return the validated incident DTO without committing or opening UnitOfWork.
+    if state.get("defer_persistence"):
+        timestamp_str = incident_dto.timestamp.isoformat().replace("+00:00", "Z")
+        report_content = {
+            "incident_id": candidate_incident_id,
+            "timestamp": timestamp_str,
+            "attack_classification": incident_dto.attack_classification,
+            "risk_category": incident_dto.risk_category,
+            "risk_score": incident_dto.risk_score,
+            "threat_intel": incident_dto.threat_intel,
+            "mitigation_plan": incident_dto.mitigation_plan,
+            "anomalous_events_count": incident_dto.anomalous_events_count,
+            "idempotency_key": idempotency_key,
+        }
+        return {
+            "incident_id": candidate_incident_id,
+            "report_content": report_content,
+            "incident_dto": incident_dto,
+            "contributing_ips": state.get("contributing_ips"),
+            "contributing_users": state.get("contributing_users"),
+        }
+
+    # Immediate persistence path
     with UnitOfWork() as uow:
         result = uow.persist_incident_lifecycle(
             incident_dto,
@@ -206,7 +308,6 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
             user_identifiers=state.get("contributing_users"),
         )
 
-    # Authoritative identity from persistence layer (preserves original ID on replay)
     authoritative_id = result.incident.incident_id
     if not result.created:
         logger.info(
@@ -229,34 +330,5 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
         "idempotency_key": idempotency_key,
     }
 
-    # 4. Save JSON report artifact
-    json_path = REPORTS_DIR / f"{authoritative_id}.json"
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(report_content, f, indent=4)
-
-    # 5. Save PDF report artifact (failures do not compromise the committed database state)
-    try:
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("helvetica", size=12)
-
-        pdf.cell(200, 10, text="ZYLAR INCIDENT REPORT", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
-        pdf.cell(200, 10, text=f"Incident ID: {authoritative_id}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
-        pdf.cell(200, 10, text=f"Time: {timestamp_str}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
-        pdf.cell(200, 10, text=f"Classification: {result.incident.attack_classification}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
-        pdf.cell(200, 10, text=f"Risk: {result.incident.risk_score} ({result.incident.risk_category})", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
-
-        pdf.cell(200, 10, text="Mitigation Plan:", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
-        for step in result.incident.mitigation_plan:
-            pdf.cell(200, 10, text=f"- {step}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
-
-        pdf_path = REPORTS_DIR / f"{authoritative_id}.pdf"
-        pdf.output(str(pdf_path))
-    except Exception as exc:
-        logger.warning(
-            "Failed to render PDF report artifact for %s: %s",
-            authoritative_id,
-            type(exc).__name__,
-        )
-
+    save_report_artifacts(report_content, result.incident.mitigation_plan)
     return {"incident_id": authoritative_id, "report_content": report_content}

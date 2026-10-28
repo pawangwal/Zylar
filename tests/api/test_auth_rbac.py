@@ -65,7 +65,11 @@ def test_unauthenticated_requests_return_401(method: str, route: str, body: dict
     else:
         response = client.get(route)
     assert response.status_code == 401
-    assert "Authorization" in response.text or "credentials" in response.text or "token" in response.text.lower()
+    assert (
+        "Authorization" in response.text
+        or "credentials" in response.text
+        or "token" in response.text.lower()
+    )
 
 
 def test_workflow_run_rbac_viewer_forbidden():
@@ -167,7 +171,10 @@ def test_exception_redaction_on_workflow_failure():
         res = client.post(
             "/api/workflow/run",
             json=payload,
-            headers={"Authorization": f"Bearer {analyst_token}", "X-Correlation-ID": "test-redact-corr"},
+            headers={
+                "Authorization": f"Bearer {analyst_token}",
+                "X-Correlation-ID": "test-redact-corr",
+            },
         )
     assert res.status_code == 500
     data = res.json()
@@ -181,7 +188,9 @@ def test_exception_redaction_on_workflow_failure():
 def test_exception_redaction_on_logs_failure():
     viewer_token = create_access_token("viewer_test", Role.VIEWER)
     with patch("api.main.Elasticsearch") as mock_es:
-        mock_es.return_value.search.side_effect = ConnectionError("internal_es_failed_on_private_port_9200")
+        mock_es.return_value.search.side_effect = ConnectionError(
+            "internal_es_failed_on_private_port_9200"
+        )
         res = client.get(
             "/api/logs/recent",
             headers={"Authorization": f"Bearer {viewer_token}", "X-Correlation-ID": "test-es-fail"},
@@ -198,7 +207,10 @@ def test_exception_redaction_on_offenders_failure():
     with patch("api.main.get_top_offenders", side_effect=Exception("sqlite_table_locked_on_disk")):
         res = client.get(
             "/api/offenders",
-            headers={"Authorization": f"Bearer {viewer_token}", "X-Correlation-ID": "test-sqlite-fail"},
+            headers={
+                "Authorization": f"Bearer {viewer_token}",
+                "X-Correlation-ID": "test-sqlite-fail",
+            },
         )
     assert res.status_code == 502
     data = res.json()

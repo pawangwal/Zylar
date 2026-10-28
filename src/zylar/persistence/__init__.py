@@ -20,6 +20,7 @@ from zylar.persistence.exceptions import (
     IdempotencyConflictError,
     PersistenceError,
     RecordNotFoundError,
+    StaleLeaseError,
 )
 from zylar.persistence.models import (
     AuditLogModel,
@@ -62,6 +63,7 @@ __all__ = [
     "PersistenceError",
     "RecordNotFoundError",
     "RiskHistoryModel",
+    "StaleLeaseError",
     "UnitOfWork",
     "UserHistoryModel",
     "dispose_engine",

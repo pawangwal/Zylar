@@ -17,8 +17,7 @@ def test_calculate_risk_asset_criticality_ports():
     ssh_state = {
         "attack_classification": "Brute Force",
         "anomalies": [
-            {"source_ip": "198.51.100.22", "user": "root", "destination_port": 22}
-            for _ in range(5)
+            {"source_ip": "198.51.100.22", "user": "root", "destination_port": 22} for _ in range(5)
         ],
         "graph_centrality": 20.0,
     }
@@ -53,9 +52,7 @@ def test_calculate_risk_asset_criticality_ports():
 def test_calculate_risk_canonical_user_propagation():
     state = {
         "attack_classification": "Brute Force",
-        "anomalies": [
-            {"source_ip": "10.0.0.1", "user": "target_user", "destination_port": 22}
-        ],
+        "anomalies": [{"source_ip": "10.0.0.1", "user": "target_user", "destination_port": 22}],
         "graph_centrality": 10.0,
     }
     result = calculate_risk_node(state)
@@ -67,8 +64,7 @@ def test_calculate_risk_score_reproducibility():
     state = {
         "attack_classification": "Ransomware",
         "anomalies": [
-            {"source_ip": "10.0.0.99", "user": "user_a", "destination_port": 445}
-            for _ in range(10)
+            {"source_ip": "10.0.0.99", "user": "user_a", "destination_port": 445} for _ in range(10)
         ],
         "graph_centrality": 35.0,
     }

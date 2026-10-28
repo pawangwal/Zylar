@@ -56,7 +56,9 @@ class IncidentCreate:
         ):
             return False
 
-        def _ref_identity(r: Any) -> tuple[str, str, str, float, str | None, int | None, str | None]:
+        def _ref_identity(
+            r: Any,
+        ) -> tuple[str, str, str, float, str | None, int | None, str | None]:
             ts = r.event_timestamp
             if ts.tzinfo is None:
                 ts_epoch = ts.replace(tzinfo=UTC).timestamp()
