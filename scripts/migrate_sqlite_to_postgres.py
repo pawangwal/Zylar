@@ -890,7 +890,11 @@ def main() -> None:
     parser.add_argument(
         "--sqlite-path",
         type=Path,
-        default=Path("memory/zylar_memory.db"),
+        default=(
+            Path("backups/legacy_sqlite/zylar_memory.db")
+            if Path("backups/legacy_sqlite/zylar_memory.db").exists()
+            else Path("memory/zylar_memory.db")
+        ),
         help="Path to source SQLite database file",
     )
     parser.add_argument(

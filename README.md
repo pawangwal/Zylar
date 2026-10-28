@@ -28,10 +28,10 @@ ZYLAR v2 follows a 6-layer architecture:
 - Defines the `AgentState` object passing through the pipeline.
 - Uses **APScheduler** to automatically poll for anomalies every 30 seconds and run the entire agentic pipeline asynchronously without manual intervention.
 
-### 6. Memory & Dashboard Layer
-- **Memory (`memory/sqlite_manager.py`)**: Stores `incidents`, `ip_history`, and `user_history` to penalize recurring offenders.
-- **FastAPI**: Manages the scheduler and serves state.
-- **Streamlit**: Advanced auto-refreshing dashboard featuring Threat Graphs, Risk Gauges, and Memory timelines.
+### 6. Persistence & Dashboard Layer
+- **PostgreSQL Persistence (`src/zylar/persistence/`)**: Transactional system of record utilizing SQLAlchemy 2.x, Alembic migrations, and Unit of Work for incidents, entity recurrence history (`ip_history`, `user_history`), risk history, and audit logging.
+- **FastAPI**: Manages the background scheduler, JWT authentication, and REST API state.
+- **Streamlit**: Advanced auto-refreshing dashboard featuring Threat Graphs, Risk Gauges, and persistence timelines.
 
 ---
 
@@ -39,7 +39,7 @@ ZYLAR v2 follows a 6-layer architecture:
 
 ### Prerequisites
 - Python 3.12+
-- Docker & Docker Compose (For ELK)
+- Docker & Docker Compose (for Elasticsearch and PostgreSQL 16)
 - [Ollama](https://ollama.com) installed and running locally.
 
 ### Step 1: Clone / Setup Directory

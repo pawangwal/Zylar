@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 import logging
 import pkgutil
 
@@ -67,7 +66,15 @@ def test_generic_exception_handler_sanitizes_sentinel_secret(caplog):
 
 
 def test_sqlite_retirement_no_active_persistence_call_sites():
-    """Verifies that no active runtime module in src/zylar, api, or agents references sqlite_manager."""
+    """Verifies that memory.sqlite_manager is deleted and no runtime module references it."""
+    import importlib.util
+
+    try:
+        spec = importlib.util.find_spec("memory.sqlite_manager")
+        assert spec is None
+    except ModuleNotFoundError:
+        pass  # Completely eliminated from the filesystem
+
     packages_to_check = ["zylar", "api", "agents"]
     imported_modules = []
 

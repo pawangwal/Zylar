@@ -50,7 +50,7 @@ token = get_auth_token()
 auth_headers = {"Authorization": f"Bearer {token}"} if token else {}
 
 # Query real-time health checks from /health/ready
-health_checks = {"elasticsearch": "offline", "sqlite": "offline", "ollama": "offline"}
+health_checks = {"elasticsearch": "offline", "database": "offline", "ollama": "offline"}
 backend_online = False
 try:
     h_res = requests.get(f"{API_URL}/health/ready", timeout=settings.request_timeout_seconds)
@@ -68,9 +68,9 @@ st.sidebar.markdown(f"{es_icon} **Elasticsearch**: {es_status.capitalize()}")
 api_icon = "✔️" if backend_online else "❌"
 st.sidebar.markdown(f"{api_icon} **FastAPI Backend**: {'Online' if backend_online else 'Offline'}")
 
-sqlite_status = health_checks.get("sqlite", "offline")
-sqlite_icon = "✔️" if sqlite_status == "healthy" else "❌"
-st.sidebar.markdown(f"{sqlite_icon} **SQLite Memory**: {sqlite_status.capitalize()}")
+db_status = health_checks.get("database", "offline")
+db_icon = "✔️" if db_status == "healthy" else "❌"
+st.sidebar.markdown(f"{db_icon} **PostgreSQL DB**: {db_status.capitalize()}")
 
 ollama_status = health_checks.get("ollama", "offline")
 ollama_icon = "✔️" if ollama_status == "healthy" else ("⚠️" if ollama_status == "degraded" else "❌")
