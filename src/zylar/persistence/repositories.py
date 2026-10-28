@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DBAPIError, IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from zylar.persistence.dtos import IncidentCreate, PersistIncidentResult
 from zylar.persistence.exceptions import (
@@ -51,8 +51,12 @@ class IncidentRepository:
         return self._session.execute(stmt).scalar_one_or_none()
 
     def get_by_idempotency_key(self, idempotency_key: str) -> IncidentModel | None:
-        """Retrieves an incident by its caller-supplied idempotency key."""
-        stmt = select(IncidentModel).where(IncidentModel.idempotency_key == idempotency_key)
+        """Retrieves an incident by its caller-supplied idempotency key with constituent event references."""
+        stmt = (
+            select(IncidentModel)
+            .options(selectinload(IncidentModel.event_refs))
+            .where(IncidentModel.idempotency_key == idempotency_key)
+        )
         return self._session.execute(stmt).scalar_one_or_none()
 
     def list_incidents(
@@ -84,7 +88,7 @@ class IncidentRepository:
                 )
             raise IdempotencyConflictError(
                 f"Idempotency key '{data.idempotency_key}' conflicts with existing incident "
-                f"'{existing.incident_id}' (payload mismatch: classification, risk score, or event count)."
+                f"'{existing.incident_id}' (payload mismatch: classification, risk score, mitigation plan, threat intel, or event references)."
             )
 
         # 2. Insert with savepoint to safely handle concurrent races without aborting the main transaction

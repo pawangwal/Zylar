@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
+
 import networkx as nx
+
 from agents.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -13,7 +15,7 @@ MAX_GRAPH_NODES = 250
 MAX_GRAPH_EDGES = 600
 
 
-def build_threat_correlation_graph_node(state: AgentState) -> Dict[str, Any]:
+def build_threat_correlation_graph_node(state: AgentState) -> dict[str, Any]:
     """Uses NetworkX to build an attack graph from log events and identify highly connected entities."""
     events = state.get("anomalies", [])
     if not events:
@@ -68,7 +70,10 @@ def build_threat_correlation_graph_node(state: AgentState) -> Dict[str, Any]:
     try:
         bet_centrality = nx.betweenness_centrality(G)
     except Exception as exc:
-        logger.debug("Betweenness centrality calculation failed, defaulting to 0.0: %s", exc)
+        logger.debug(
+            "Betweenness centrality calculation failed (%s), defaulting to 0.0",
+            type(exc).__name__,
+        )
         bet_centrality = {node: 0.0 for node in G.nodes}
 
     max_centrality_score = 0.0

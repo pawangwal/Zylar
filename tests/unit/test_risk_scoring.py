@@ -72,8 +72,7 @@ def test_calculate_risk_score_reproducibility():
         ],
         "graph_centrality": 35.0,
     }
-    with patch("agents.risk_agent.get_historical_recurrence_factor", return_value=15), \
-         patch("agents.risk_agent.update_entity_history"):
+    with patch("agents.risk_agent.get_historical_recurrence_factor", return_value=15):
         r1 = calculate_risk_node(state)
         r2 = calculate_risk_node(state)
         assert r1["risk_score"] == r2["risk_score"]

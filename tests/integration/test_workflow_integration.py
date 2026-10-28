@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -50,7 +51,10 @@ def test_workflow_integration_benign_logs(isolated_reports_dir: Path):
 
     # Even if classifier LLM is invoked, mock ollama.Client to avoid external calls
     with patch("ollama.Client"):
-        final_state = graph.invoke({"raw_logs": benign_raw})
+        final_state = graph.invoke({
+            "raw_logs": benign_raw,
+            "idempotency_key": f"test-benign-{uuid.uuid4().hex[:8]}",
+        })
 
     parsed = final_state.get("parsed_events", [])
     assert len(parsed) == 10
@@ -112,7 +116,10 @@ def test_workflow_integration_attack_logs_with_controlled_dependencies(
     mock_ollama_client.chat.side_effect = mock_ollama_chat
 
     with patch("ollama.Client", return_value=mock_ollama_client):
-        final_state = graph.invoke({"raw_logs": all_logs})
+        final_state = graph.invoke({
+            "raw_logs": all_logs,
+            "idempotency_key": f"test-attack-ctrl-{uuid.uuid4().hex[:8]}",
+        })
 
     # Node 1: analyze_logs
     assert len(final_state.get("parsed_events", [])) == 45
@@ -174,7 +181,10 @@ def test_workflow_integration_deterministic_fallback_on_llm_failure(
     )
 
     with patch("ollama.Client", return_value=mock_failing_ollama):
-        final_state = graph.invoke({"raw_logs": all_logs})
+        final_state = graph.invoke({
+            "raw_logs": all_logs,
+            "idempotency_key": f"test-attack-fallback-{uuid.uuid4().hex[:8]}",
+        })
 
     # Workflow must complete all 8 nodes without crashing
     assert final_state.get("attack_classification") == "Brute Force"
@@ -229,7 +239,10 @@ def test_workflow_integration_quarantines_malformed_records(isolated_reports_dir
     graph = build_workflow()
 
     with patch("ollama.Client"):
-        final_state = graph.invoke({"raw_logs": mixed_raw})
+        final_state = graph.invoke({
+            "raw_logs": mixed_raw,
+            "idempotency_key": f"test-quarantine-{uuid.uuid4().hex[:8]}",
+        })
 
     parsed = final_state.get("parsed_events", [])
     quarantined = final_state.get("quarantined_events", [])

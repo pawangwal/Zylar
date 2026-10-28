@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -33,7 +34,11 @@ from zylar.core.security import (
 )
 from zylar.core.settings import get_settings
 from zylar.domain.workflow import WorkflowRequest
-from zylar.persistence.database import DatabaseManager, get_session
+from zylar.persistence.database import (
+    DatabaseManager,
+    get_database_manager,
+    get_session,
+)
 from zylar.persistence.repositories import OffenderHistoryRepository
 
 settings = get_settings()
@@ -86,7 +91,11 @@ def check_for_threats() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Manages application startup and clean scheduler shutdown."""
+    """Manages application startup, shared database manager pool, and clean scheduler shutdown."""
+    db_manager = get_database_manager(settings)
+    app.state.db_manager = db_manager
+    logger.info("Shared PostgreSQL DatabaseManager initialized on app.state.")
+
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(check_for_threats, "interval", seconds=30, id="threat_scan")
     scheduler.start()
@@ -100,6 +109,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:
         logger.warning("Error during scheduler shutdown: %s", exc)
 
+    try:
+        db_manager.dispose()
+        logger.info("Shared PostgreSQL DatabaseManager connection pool disposed.")
+    except Exception as exc:
+        logger.warning("Error during database manager disposal: %s", exc)
+
 
 app = FastAPI(
     title="ZYLAR API - Autonomous Cybersecurity Platform",
@@ -107,14 +122,27 @@ app = FastAPI(
 )
 
 
+_CORRELATION_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.]{1,128}$")
+
+
 @app.middleware("http")
 async def correlation_id_middleware(request: Request, call_next: Any) -> Any:
-    """Attaches or propagates an X-Correlation-ID header across request and response life-cycle."""
-    corr_id = request.headers.get("X-Correlation-ID")
-    if not corr_id or not corr_id.strip():
+    """Attaches, validates, and propagates an X-Correlation-ID header across request/response life-cycle."""
+    raw_corr_id = request.headers.get("X-Correlation-ID")
+    if not raw_corr_id or not raw_corr_id.strip():
         corr_id = f"req-{uuid.uuid4().hex[:12]}"
     else:
-        corr_id = corr_id.strip()
+        clean_id = raw_corr_id.strip()
+        if not _CORRELATION_ID_PATTERN.match(clean_id):
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "error": "Invalid X-Correlation-ID header; must be 1-128 alphanumeric, hyphen, underscore, or dot characters.",
+                    "correlation_id": f"req-{uuid.uuid4().hex[:12]}",
+                },
+                headers={"X-Correlation-ID": f"req-{uuid.uuid4().hex[:12]}"},
+            )
+        corr_id = clean_id
 
     request.state.correlation_id = corr_id
     response = await call_next(request)
@@ -153,7 +181,7 @@ async def validation_exception_handler(
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     corr_id = getattr(request.state, "correlation_id", f"req-{uuid.uuid4().hex[:12]}")
-    logger.exception("Unhandled server exception [%s]: %s", corr_id, exc)
+    logger.error("Unhandled server exception [%s]: %s", corr_id, type(exc).__name__)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"error": "Internal server error", "correlation_id": corr_id},
@@ -204,10 +232,10 @@ async def health_live() -> dict[str, Any]:
 
 
 @app.get("/health/ready")
-async def health_ready(response: Response) -> dict[str, Any]:
+async def health_ready(request: Request, response: Response) -> dict[str, Any]:
     """Readiness probe checking real operational readiness of dependencies.
 
-    Checks Elasticsearch and SQLite memory database. Treats Ollama as an optional
+    Checks Elasticsearch and PostgreSQL database. Treats Ollama as an optional
     dependency: if Ollama is unreachable, status is 'degraded' (HTTP 200) because
     the workflow operates safely with deterministic fallbacks. If critical dependencies
     fail, returns HTTP 503 Service Unavailable.
@@ -231,23 +259,24 @@ async def health_ready(response: Response) -> dict[str, Any]:
         checks["elasticsearch"] = "unhealthy"
         is_ready = False
 
-    # 2. Check Database connectivity (PostgreSQL)
-    try:
-        def check_db() -> bool:
-            return DatabaseManager(settings).check_connection()
-
-        db_ok = await anyio.to_thread.run_sync(check_db)
-        if db_ok:
-            checks["database"] = "healthy"
-            checks["sqlite"] = "healthy"  # Deprecated alias preserved for monitoring contracts
-        else:
-            checks["database"] = "unhealthy"
-            checks["sqlite"] = "unhealthy"
-            is_ready = False
-    except Exception:
+    # 2. Check Database connectivity (PostgreSQL) strictly using lifespan-managed pool
+    db_mgr: DatabaseManager | None = getattr(request.app.state, "db_manager", None)
+    if db_mgr is None:
+        logger.error("Readiness probe failed: app.state.db_manager is not initialized by lifespan.")
         checks["database"] = "unhealthy"
-        checks["sqlite"] = "unhealthy"
         is_ready = False
+    else:
+        try:
+            db_ok = await anyio.to_thread.run_sync(db_mgr.check_connection)
+            if db_ok:
+                checks["database"] = "healthy"
+            else:
+                checks["database"] = "unhealthy"
+                is_ready = False
+        except Exception as exc:
+            logger.warning("Database readiness probe error: %s", type(exc).__name__)
+            checks["database"] = "unhealthy"
+            is_ready = False
 
     # 3. Check Ollama (degraded optional dependency)
     try:

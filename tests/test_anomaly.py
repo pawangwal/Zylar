@@ -33,10 +33,10 @@ class TestAnomalyAgent(unittest.TestCase):
         # Anomalous behavior (Brute force from single IP)
         for _ in range(15):
             events.append({"source_ip": "10.0.0.99", "status": "failed", "event_type": "authentication"})
-            
+
         state = {"parsed_events": events}
         result = detect_anomalies_node(state)
-        
+
         # ML model should flag the repetitive failed logins as anomalous
         self.assertTrue(len(result["anomalies"]) > 0)
         self.assertEqual(result["anomalies"][0]["source_ip"], "10.0.0.99")

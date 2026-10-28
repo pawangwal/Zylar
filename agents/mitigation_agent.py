@@ -1,5 +1,7 @@
 import json
+
 import ollama
+
 from agents.state import AgentState
 from zylar.core.settings import get_settings
 
@@ -45,9 +47,9 @@ Return the steps as a JSON list of strings."""
         plan = json.loads(content)
         if not isinstance(plan, list):
             plan = [str(x) for x in plan.values()]
-    except Exception as e:
+    except Exception:
         plan = [
-            f"Block offending IP addresses manually",
+            "Block offending IP addresses manually",
             "Isolate affected hosts",
             f"Investigate {classification} activity",
         ]

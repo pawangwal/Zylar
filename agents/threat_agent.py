@@ -1,6 +1,7 @@
-import os
 import json
+
 import ollama
+
 from agents.state import AgentState
 from zylar.core.settings import get_settings
 
@@ -43,8 +44,8 @@ Anomalies: {anomalies[:50]}"""  # Limit to avoid context bloom
         intel = json.loads(content)
     except Exception as e:
         intel = {
-            "summary": "Error parsing local LLM response",
-            "raw_response": str(e),
+            "summary": "Error parsing local LLM response or service unavailable.",
+            "error_type": type(e).__name__,
             "attacker_ips": [],
             "targeted_users": [],
         }

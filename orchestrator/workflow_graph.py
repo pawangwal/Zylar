@@ -12,7 +12,7 @@ from agents.report_agent import generate_report_node
 def build_workflow() -> StateGraph:
     """Builds the LangGraph deterministic workflow for ZYLAR."""
     workflow = StateGraph(AgentState)
-    
+
     # Add Nodes
     workflow.add_node("analyze_logs", analyze_logs_node)
     workflow.add_node("detect_anomalies", detect_anomalies_node)
@@ -22,7 +22,7 @@ def build_workflow() -> StateGraph:
     workflow.add_node("calculate_risk", calculate_risk_node)
     workflow.add_node("generate_mitigation", generate_mitigation_node)
     workflow.add_node("generate_report", generate_report_node)
-    
+
     # Define Edges (Deterministic path)
     workflow.set_entry_point("analyze_logs")
     workflow.add_edge("analyze_logs", "detect_anomalies")
@@ -33,5 +33,5 @@ def build_workflow() -> StateGraph:
     workflow.add_edge("calculate_risk", "generate_mitigation")
     workflow.add_edge("generate_mitigation", "generate_report")
     workflow.add_edge("generate_report", END)
-    
+
     return workflow.compile()

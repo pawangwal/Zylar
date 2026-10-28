@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
+
 from agents.state import AgentState
 from zylar.domain.events import EventNormalizer
 
 
-def analyze_logs_node(state: AgentState) -> Dict[str, Any]:
+def analyze_logs_node(state: AgentState) -> dict[str, Any]:
     """Normalizes raw logs at the ingestion boundary using canonical domain validation."""
     raw_logs = state.get("raw_logs", [])
     if not raw_logs:

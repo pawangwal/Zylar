@@ -13,7 +13,7 @@ def init_db():
     """Initializes the SQLite database with required tables."""
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     # Incidents table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS incidents (
@@ -27,7 +27,7 @@ def init_db():
             anomalous_events_count INTEGER
         )
     ''')
-    
+
     # IP History table for tracking recurring bad actors
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ip_history (
@@ -37,7 +37,7 @@ def init_db():
             last_risk_score INTEGER
         )
     ''')
-    
+
     # User History table for tracking compromised/malicious users
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_history (
@@ -47,7 +47,7 @@ def init_db():
             last_risk_score INTEGER
         )
     ''')
-    
+
     # Risk History table for tracking overall system risk over time
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS risk_history (
@@ -57,7 +57,7 @@ def init_db():
             risk_score INTEGER
         )
     ''')
-    
+
     conn.commit()
     conn.close()
 
@@ -65,7 +65,7 @@ def log_incident(incident_data: Dict[str, Any]):
     """Stores the generated incident report into memory."""
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     try:
         now_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         cursor.execute('''
@@ -81,7 +81,7 @@ def log_incident(incident_data: Dict[str, Any]):
             json.dumps(incident_data.get("threat_intel", {})),
             incident_data.get("anomalous_events_count", 0)
         ))
-        
+
         # Log to risk history
         cursor.execute('''
             INSERT INTO risk_history (timestamp, incident_id, risk_score)
@@ -91,7 +91,7 @@ def log_incident(incident_data: Dict[str, Any]):
             incident_data.get("incident_id"),
             incident_data.get("risk_score")
         ))
-        
+
         conn.commit()
     except sqlite3.IntegrityError:
         # Incident already exists
@@ -104,15 +104,15 @@ def update_entity_history(ips: List[str], users: List[str], risk_score: int):
     conn = get_connection()
     cursor = conn.cursor()
     now_str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    
+
     for ip in ips:
         cursor.execute("SELECT offense_count FROM ip_history WHERE ip_address=?", (ip,))
         result = cursor.fetchone()
         if result:
             new_count = result[0] + 1
             cursor.execute('''
-                UPDATE ip_history 
-                SET offense_count=?, last_seen=?, last_risk_score=? 
+                UPDATE ip_history
+                SET offense_count=?, last_seen=?, last_risk_score=?
                 WHERE ip_address=?
             ''', (new_count, now_str, risk_score, ip))
         else:
@@ -120,15 +120,15 @@ def update_entity_history(ips: List[str], users: List[str], risk_score: int):
                 INSERT INTO ip_history (ip_address, offense_count, last_seen, last_risk_score)
                 VALUES (?, ?, ?, ?)
             ''', (ip, 1, now_str, risk_score))
-            
+
     for user in users:
         cursor.execute("SELECT offense_count FROM user_history WHERE username=?", (user,))
         result = cursor.fetchone()
         if result:
             new_count = result[0] + 1
             cursor.execute('''
-                UPDATE user_history 
-                SET offense_count=?, last_seen=?, last_risk_score=? 
+                UPDATE user_history
+                SET offense_count=?, last_seen=?, last_risk_score=?
                 WHERE username=?
             ''', (new_count, now_str, risk_score, user))
         else:
@@ -144,23 +144,23 @@ def get_historical_recurrence_factor(ips: List[str], users: List[str]) -> int:
     """Calculates a heuristic recurrence factor based on past offenses (0-100)."""
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     total_offenses = 0
-    
+
     for ip in ips:
         cursor.execute("SELECT offense_count FROM ip_history WHERE ip_address=?", (ip,))
         res = cursor.fetchone()
         if res:
             total_offenses += res[0]
-            
+
     for user in users:
         cursor.execute("SELECT offense_count FROM user_history WHERE username=?", (user,))
         res = cursor.fetchone()
         if res:
             total_offenses += res[0]
-            
+
     conn.close()
-    
+
     # 5 points per past offense, max 100
     return min(100, total_offenses * 5)
 
@@ -168,13 +168,13 @@ def get_top_offenders(limit: int = 5) -> Dict[str, List[Dict]]:
     """Retrieves top recurring anomalous IPs and users for the dashboard."""
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("SELECT ip_address, offense_count, last_seen FROM ip_history ORDER BY offense_count DESC LIMIT ?", (limit,))
     ips = [{"ip": row[0], "count": row[1], "last_seen": row[2]} for row in cursor.fetchall()]
-    
+
     cursor.execute("SELECT username, offense_count, last_seen FROM user_history ORDER BY offense_count DESC LIMIT ?", (limit,))
     users = [{"user": row[0], "count": row[1], "last_seen": row[2]} for row in cursor.fetchall()]
-    
+
     conn.close()
     return {"top_ips": ips, "top_users": users}
 

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
+
 import pandas as pd
 from sklearn.ensemble import IsolationForest
+
 from agents.state import AgentState
 
 
-def detect_anomalies_node(state: AgentState) -> Dict[str, Any]:
+def detect_anomalies_node(state: AgentState) -> dict[str, Any]:
     """Uses scikit-learn Isolation Forest to detect statistical anomalies in log frequency and IP behavior."""
     events = state.get("parsed_events", [])
     if not events:
@@ -41,9 +43,9 @@ def detect_anomalies_node(state: AgentState) -> Dict[str, Any]:
 
     # Convert to clean records, ensuring NaN is converted to None and integer ports preserved
     records = anomalies_df.drop(columns=["anomaly", "anomaly_score"]).to_dict(orient="records")
-    clean_anomalies: List[Dict[str, Any]] = []
+    clean_anomalies: list[dict[str, Any]] = []
     for rec in records:
-        clean_rec: Dict[str, Any] = {}
+        clean_rec: dict[str, Any] = {}
         for k, v in rec.items():
             if pd.isna(v):
                 clean_rec[k] = None

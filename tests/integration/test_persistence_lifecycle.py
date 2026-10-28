@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from agents.report_agent import generate_report_node
 from agents.risk_agent import calculate_risk_node
 from api.main import app
 from fastapi.testclient import TestClient
@@ -20,6 +22,8 @@ from sqlalchemy import create_engine, select, text
 from zylar.core.security import Role, create_access_token
 from zylar.core.settings import get_settings
 from zylar.persistence.database import get_session
+from zylar.persistence.dtos import IncidentCreate
+from zylar.persistence.exceptions import DatabaseConnectionError, IdempotencyConflictError
 from zylar.persistence.models import (
     AuditLogModel,
     IncidentEventRefModel,
@@ -28,24 +32,39 @@ from zylar.persistence.models import (
     RiskHistoryModel,
     UserHistoryModel,
 )
+from zylar.persistence.unit_of_work import UnitOfWork
 
 
-def check_live_postgres() -> bool:
+def check_postgres_availability() -> tuple[bool, str]:
     settings = get_settings()
     try:
         engine = create_engine(str(settings.database_url), connect_args={"connect_timeout": 2})
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         engine.dispose()
-        return True
-    except Exception:
-        return False
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
 
+
+_IS_STRICT = (
+    os.environ.get("ZYLAR_REQUIRE_POSTGRES", "").strip().lower() in ("1", "true", "yes")
+    or os.environ.get("CI", "").strip().lower() in ("1", "true", "yes")
+)
+_PG_AVAILABLE, _PG_ERROR = check_postgres_availability()
 
 pytestmark = pytest.mark.skipif(
-    not check_live_postgres(),
-    reason="PostgreSQL not reachable at configured ZYLAR_DATABASE_URL",
+    not _IS_STRICT and not _PG_AVAILABLE,
+    reason=f"PostgreSQL not reachable at configured ZYLAR_DATABASE_URL ({_PG_ERROR})",
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def enforce_postgres_availability():
+    if _IS_STRICT and not _PG_AVAILABLE:
+        pytest.fail(
+            f"Strict verification mode enabled (ZYLAR_REQUIRE_POSTGRES/CI), but PostgreSQL is unreachable at configured ZYLAR_DATABASE_URL: {_PG_ERROR}"
+        )
 
 
 @pytest.fixture
@@ -232,3 +251,179 @@ def test_api_offenders_returns_postgres_records():
     assert "top_users" in data["data"]
     assert isinstance(data["data"]["top_ips"], list)
     assert isinstance(data["data"]["top_users"], list)
+
+
+def test_workflow_deterministic_idempotency_without_upstream_key(isolated_reports: Path):
+    """Verifies that replay without an explicit upstream key deterministically derives
+
+    a stable batch key from constituent event signatures, preserving incident identity
+    and preventing double-counting.
+    """
+    unique_sig = uuid.uuid4().hex[:8]
+    anomalies = [
+        {
+            "event_id": f"ev-{unique_sig}-1",
+            "source": "suricata",
+            "source_ip": "198.51.100.99",
+            "destination_port": 22,
+            "timestamp": "2026-10-27T10:00:00Z",
+        },
+        {
+            "event_id": f"ev-{unique_sig}-2",
+            "source": "auth",
+            "user": "analyst_bob",
+            "source_ip": "198.51.100.99",
+            "timestamp": "2026-10-27T10:01:00Z",
+        },
+    ]
+
+    base_state = {
+        "attack_classification": "Brute Force",
+        "risk_score": 70,
+        "risk_category": "High",
+        "anomalies": anomalies,
+        "threat_intel": {"summary": "SSH brute force attack"},
+        "mitigation_plan": ["Block IP 198.51.100.99"],
+        "contributing_ips": ["198.51.100.99"],
+        "contributing_users": ["analyst_bob"],
+        # No upstream idempotency_key provided
+    }
+
+    # Initial execution
+    res1 = generate_report_node(base_state)
+    inc_id_1 = res1["incident_id"]
+    assert inc_id_1.startswith("ZYLAR-INC-")
+    derived_key = res1["report_content"]["idempotency_key"]
+    assert derived_key.startswith("batch:Brute Force:")
+
+    # Replay with identical anomalies and no explicit idempotency key
+    res2 = generate_report_node(base_state)
+    inc_id_2 = res2["incident_id"]
+
+    # Deduplication MUST preserve the original incident identity
+    assert inc_id_1 == inc_id_2
+    assert res2["report_content"]["idempotency_key"] == derived_key
+
+    # Verify database state
+    with get_session() as session:
+        matching = session.execute(
+            select(IncidentModel).where(IncidentModel.idempotency_key == derived_key)
+        ).scalars().all()
+        assert len(matching) == 1
+        assert matching[0].incident_id == inc_id_1
+
+
+def test_idempotency_conflict_on_changed_payload():
+    """Verifies that reusing an idempotency key with a conflicting payload raises IdempotencyConflictError."""
+    shared_key = f"key-conflict-{uuid.uuid4().hex[:8]}"
+    cand_id_1 = f"ZYLAR-INC-{uuid.uuid4().hex[:8].upper()}"
+    cand_id_2 = f"ZYLAR-INC-{uuid.uuid4().hex[:8].upper()}"
+
+    dto1 = IncidentCreate(
+        incident_id=cand_id_1,
+        idempotency_key=shared_key,
+        timestamp=datetime.now(UTC),
+        attack_classification="Brute Force",
+        risk_score=60,
+        risk_category="High",
+        mitigation_plan=["Block IP"],
+        threat_intel={},
+        anomalous_events_count=2,
+    )
+
+    with UnitOfWork() as uow:
+        res1 = uow.persist_incident_lifecycle(dto1)
+        assert res1.created is True
+
+    # Attempt to persist conflicting payload under the same idempotency key
+    dto2 = IncidentCreate(
+        incident_id=cand_id_2,
+        idempotency_key=shared_key,
+        timestamp=datetime.now(UTC),
+        attack_classification="Brute Force",
+        risk_score=95,  # Conflicting risk score!
+        risk_category="Critical",
+        mitigation_plan=["Block IP"],
+        threat_intel={},
+        anomalous_events_count=2,
+    )
+
+    with pytest.raises(IdempotencyConflictError, match="conflicts with existing incident"):
+        with UnitOfWork() as uow:
+            uow.persist_incident_lifecycle(dto2)
+
+
+def test_database_outage_produces_explicit_failure_never_fallback():
+    """Verifies that PostgreSQL failures raise explicit DatabaseConnectionError
+
+    and NEVER fall back to SQLite or in-memory state.
+    """
+    state = {
+        "attack_classification": "Ransomware",
+        "anomalies": [
+            {
+                "source_ip": "10.0.0.1",
+                "user": "admin",
+                "destination_port": 445,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        ],
+        "graph_centrality": 20.0,
+    }
+
+    # 1. Risk calculation during PostgreSQL outage
+    with patch(
+        "zylar.persistence.database.DatabaseManager.get_session",
+        side_effect=DatabaseConnectionError("PostgreSQL unreachable on port 5434"),
+    ):
+        with pytest.raises(DatabaseConnectionError):
+            calculate_risk_node(state)
+
+    # 2. Report generation / persistence during PostgreSQL outage
+    with patch(
+        "zylar.persistence.database.DatabaseManager.session_factory",
+        side_effect=DatabaseConnectionError("PostgreSQL unreachable on port 5434"),
+    ):
+        with pytest.raises(DatabaseConnectionError):
+            generate_report_node(state)
+
+
+def test_generate_report_node_canonical_batch_replay_and_conflict(isolated_reports: Path):
+    """Verifies that generate_report_node replays the existing incident for the same canonical batch
+
+    and raises IdempotencyConflictError if downstream payload fields conflict.
+    """
+    anomalies = [
+        {
+            "source": "zeek",
+            "event_id": f"evt-{uuid.uuid4().hex[:8]}",
+            "raw_event_hash": "a" * 64,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "source_ip": "198.51.100.55",
+            "destination_port": 443,
+            "user": "analyst",
+        }
+    ]
+    state1 = {
+        "attack_classification": "Brute Force",
+        "risk_score": 75,
+        "risk_category": "High",
+        "mitigation_plan": ["Block IP", "Rotate keys"],
+        "threat_intel": {"ttp": "T1110"},
+        "anomalies": anomalies,
+    }
+
+    # First run creates the incident
+    out1 = generate_report_node(state1)
+    inc_id_1 = out1["incident_id"]
+    assert inc_id_1.startswith("ZYLAR-INC-")
+
+    # Replaying the exact same canonical batch yields the same incident ID
+    out2 = generate_report_node(state1)
+    assert out2["incident_id"] == inc_id_1
+
+    # Reusing the derived idempotency key with conflicting mitigation plan raises IdempotencyConflictError
+    state_conflict = dict(state1)
+    state_conflict["mitigation_plan"] = ["Isolate host entire subnet"]
+    with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+        generate_report_node(state_conflict)

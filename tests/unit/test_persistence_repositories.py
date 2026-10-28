@@ -13,7 +13,7 @@ from zylar.persistence.exceptions import (
     IdempotencyConflictError,
     RecordNotFoundError,
 )
-from zylar.persistence.models import IncidentModel
+from zylar.persistence.models import IncidentEventRefModel, IncidentModel
 from zylar.persistence.repositories import (
     IncidentRepository,
     OffenderHistoryRepository,
@@ -65,22 +65,36 @@ def test_create_incident_idempotent_duplicate_returns_existing():
     mock_session = MagicMock(spec=Session)
     repo = IncidentRepository(mock_session)
 
+    payload = make_sample_incident_create(idempotency_key="idemp-key-dup")
     existing = IncidentModel(
         incident_id="ZYLAR-INC-EXISTING",
         idempotency_key="idemp-key-dup",
         timestamp=datetime.now(UTC),
-        attack_classification="Brute Force",
-        risk_score=75,
-        risk_category="High",
-        anomalous_events_count=2,
+        attack_classification=payload.attack_classification,
+        risk_score=payload.risk_score,
+        risk_category=payload.risk_category,
+        anomalous_events_count=payload.anomalous_events_count,
         status="NEW",
+        mitigation_plan=list(payload.mitigation_plan),
+        threat_intel=dict(payload.threat_intel),
     )
+    existing.event_refs = [
+        IncidentEventRefModel(
+            event_source=ref.event_source,
+            source_event_id=ref.source_event_id,
+            raw_event_hash=ref.raw_event_hash,
+            event_timestamp=ref.event_timestamp,
+            source_ip=ref.source_ip,
+            destination_port=ref.destination_port,
+            user_identifier=ref.user_identifier,
+        )
+        for ref in payload.event_refs
+    ]
 
     mock_execute = MagicMock()
     mock_execute.scalar_one_or_none.return_value = existing
     mock_session.execute.return_value = mock_execute
 
-    payload = make_sample_incident_create(idempotency_key="idemp-key-dup")
     result = repo.create_incident(payload)
 
     assert result.created is False

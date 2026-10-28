@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import concurrent.futures
+import os
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, func, select, text
 
 from zylar.core.settings import get_settings
 from zylar.persistence.database import DatabaseManager
@@ -14,8 +16,12 @@ from zylar.persistence.exceptions import (
     IdempotencyConflictError,
 )
 from zylar.persistence.models import (
+    AuditLogModel,
     IncidentEventRefModel,
     IncidentModel,
+    IPHistoryModel,
+    RiskHistoryModel,
+    UserHistoryModel,
 )
 from zylar.persistence.repositories import (
     IncidentRepository,
@@ -24,22 +30,36 @@ from zylar.persistence.repositories import (
 from zylar.persistence.unit_of_work import UnitOfWork
 
 
-def check_live_postgres() -> bool:
+def check_postgres_availability() -> tuple[bool, str]:
     settings = get_settings()
     try:
         engine = create_engine(str(settings.database_url), connect_args={"connect_timeout": 2})
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         engine.dispose()
-        return True
-    except Exception:
-        return False
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
 
+
+_IS_STRICT = (
+    os.environ.get("ZYLAR_REQUIRE_POSTGRES", "").strip().lower() in ("1", "true", "yes")
+    or os.environ.get("CI", "").strip().lower() in ("1", "true", "yes")
+)
+_PG_AVAILABLE, _PG_ERROR = check_postgres_availability()
 
 pytestmark = pytest.mark.skipif(
-    not check_live_postgres(),
-    reason="PostgreSQL not reachable at configured ZYLAR_DATABASE_URL",
+    not _IS_STRICT and not _PG_AVAILABLE,
+    reason=f"PostgreSQL not reachable at configured ZYLAR_DATABASE_URL ({_PG_ERROR})",
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def enforce_postgres_availability():
+    if _IS_STRICT and not _PG_AVAILABLE:
+        pytest.fail(
+            f"Strict verification mode enabled (ZYLAR_REQUIRE_POSTGRES/CI), but PostgreSQL is unreachable at configured ZYLAR_DATABASE_URL: {_PG_ERROR}"
+        )
 
 
 @pytest.fixture(scope="module")
@@ -76,7 +96,7 @@ def clean_postgres_test_data(db_manager):
                 )
                 conn.execute(
                     text(
-                        "DELETE FROM ip_history WHERE ip_address LIKE '198.51.100.%' OR ip_address LIKE '203.0.113.%'"
+                        "DELETE FROM ip_history WHERE ip_address IN ('198.51.100.10', '198.51.100.55', '198.51.100.77', '198.51.100.99') OR ip_address LIKE '203.0.113.%'"
                     )
                 )
                 conn.execute(
@@ -94,8 +114,22 @@ def make_test_incident(
     classification: str = "Credential Access",
     ip: str = "198.51.100.10",
     user: str = "test_user_1",
+    mitigation_plan: list[str] | None = None,
+    threat_intel: dict[str, Any] | None = None,
+    event_refs: list[EventRefData] | None = None,
 ) -> IncidentCreate:
     now = datetime.now(UTC)
+    refs = event_refs if event_refs is not None else [
+        EventRefData(
+            event_source="zeek",
+            source_event_id=f"evt-{key_suffix}",
+            raw_event_hash=f"hash-{key_suffix}",
+            event_timestamp=now,
+            source_ip=ip,
+            destination_port=443,
+            user_identifier=user,
+        )
+    ]
     return IncidentCreate(
         incident_id=f"ZYLAR-INC-TEST-{key_suffix.upper()}",
         idempotency_key=f"test-idemp-{key_suffix}",
@@ -103,21 +137,11 @@ def make_test_incident(
         attack_classification=classification,
         risk_score=risk_score,
         risk_category="High" if risk_score >= 70 else "Medium",
-        mitigation_plan=["Isolate host", "Revoke credentials"],
-        threat_intel={"ttp": "T1110"},
-        anomalous_events_count=1,
+        mitigation_plan=mitigation_plan if mitigation_plan is not None else ["Isolate host", "Revoke credentials"],
+        threat_intel=threat_intel if threat_intel is not None else {"ttp": "T1110"},
+        anomalous_events_count=len(refs),
         status="NEW",
-        event_refs=[
-            EventRefData(
-                event_source="zeek",
-                source_event_id=f"evt-{key_suffix}",
-                raw_event_hash=f"hash-{key_suffix}",
-                event_timestamp=now,
-                source_ip=ip,
-                destination_port=443,
-                user_identifier=user,
-            )
-        ],
+        event_refs=refs,
         actor="test-agent",
         correlation_id=f"test-corr-{key_suffix}",
     )
@@ -238,6 +262,127 @@ def test_postgres_idempotency_conflicting_payload_raises(session_factory):
             uow.incidents.create_incident(dto_conflicting)
 
 
+def test_postgres_idempotency_conflicting_mitigation_plan_raises(session_factory):
+    """Confirms that modifying the mitigation plan for the same idempotency key raises IdempotencyConflictError."""
+    suffix = uuid.uuid4().hex[:8]
+    dto1 = make_test_incident(suffix, mitigation_plan=["Block IP"])
+
+    with UnitOfWork(session_factory) as uow:
+        res1 = uow.incidents.create_incident(dto1)
+        assert res1.created is True
+
+    # Same key, changed mitigation_plan
+    dto_conflicting = make_test_incident(
+        suffix, mitigation_plan=["Block IP", "Isolate host subnet"]
+    )
+
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(dto_conflicting)
+
+
+def test_postgres_idempotency_conflicting_threat_intel_raises(session_factory):
+    """Confirms that modifying threat intelligence for the same idempotency key raises IdempotencyConflictError."""
+    suffix = uuid.uuid4().hex[:8]
+    dto1 = make_test_incident(suffix, threat_intel={"reputation": "malicious"})
+
+    with UnitOfWork(session_factory) as uow:
+        res1 = uow.incidents.create_incident(dto1)
+        assert res1.created is True
+
+    # Same key, changed threat_intel
+    dto_conflicting = make_test_incident(
+        suffix, threat_intel={"reputation": "malicious", "cve": "CVE-2026-1234"}
+    )
+
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(dto_conflicting)
+
+
+def test_postgres_idempotency_conflicting_event_refs_raises(session_factory):
+    """Confirms that altering constituent event references raises IdempotencyConflictError."""
+    suffix = uuid.uuid4().hex[:8]
+    now = datetime.now(UTC)
+    ref1 = EventRefData(
+        event_source="zeek",
+        source_event_id=f"evt-{suffix}-A",
+        raw_event_hash=f"hash-{suffix}-A",
+        event_timestamp=now,
+    )
+    dto1 = make_test_incident(suffix, event_refs=[ref1])
+
+    with UnitOfWork(session_factory) as uow:
+        res1 = uow.incidents.create_incident(dto1)
+        assert res1.created is True
+
+    # Same key, divergent event references
+    ref2 = EventRefData(
+        event_source="suricata",
+        source_event_id=f"evt-{suffix}-B",
+        raw_event_hash=f"hash-{suffix}-B",
+        event_timestamp=now,
+    )
+    dto_conflicting = make_test_incident(suffix, event_refs=[ref2])
+
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(dto_conflicting)
+
+
+def test_postgres_idempotency_replay_does_not_increment_recurrence(session_factory):
+    """Verifies that replaying the identical canonical batch does not increment offense or risk counts."""
+    suffix = uuid.uuid4().hex[:8]
+    dto = make_test_incident(suffix, ip="198.51.100.10", user="test_user_1")
+
+    # Initial creation via UnitOfWork.persist_incident_lifecycle
+    with UnitOfWork(session_factory) as uow:
+        res1 = uow.persist_incident_lifecycle(dto)
+        assert res1.created is True
+
+    # Read baseline counts
+    session = session_factory()
+    try:
+        ip_row1 = session.execute(
+            select(IPHistoryModel).where(IPHistoryModel.ip_address == "198.51.100.10")
+        ).scalar_one()
+        user_row1 = session.execute(
+            select(UserHistoryModel).where(UserHistoryModel.username == "test_user_1")
+        ).scalar_one()
+        risk_count1 = session.execute(
+            select(func.count(RiskHistoryModel.id)).where(RiskHistoryModel.incident_id == res1.incident.id)
+        ).scalar() or 0
+        ip_offenses_1 = ip_row1.offense_count
+        user_offenses_1 = user_row1.offense_count
+    finally:
+        session.close()
+
+    # Replay the identical incident via persist_incident_lifecycle
+    with UnitOfWork(session_factory) as uow:
+        res2 = uow.persist_incident_lifecycle(dto)
+        assert res2.created is False
+        assert res2.incident.id == res1.incident.id
+
+    # Confirm recurrence counts and risk records did NOT increment
+    session = session_factory()
+    try:
+        ip_row2 = session.execute(
+            select(IPHistoryModel).where(IPHistoryModel.ip_address == "198.51.100.10")
+        ).scalar_one()
+        user_row2 = session.execute(
+            select(UserHistoryModel).where(UserHistoryModel.username == "test_user_1")
+        ).scalar_one()
+        risk_count2 = session.execute(
+            select(func.count(RiskHistoryModel.id)).where(RiskHistoryModel.incident_id == res1.incident.id)
+        ).scalar() or 0
+
+        assert ip_row2.offense_count == ip_offenses_1
+        assert user_row2.offense_count == user_offenses_1
+        assert risk_count2 == risk_count1
+    finally:
+        session.close()
+
+
 def test_postgres_uow_atomic_rollback_on_failure(session_factory):
     suffix = uuid.uuid4().hex[:8]
     dto = make_test_incident(suffix)
@@ -349,9 +494,9 @@ def test_postgres_concurrent_idempotency_inserts(session_factory):
     - Strictly 1 row in the database
     """
     suffix = uuid.uuid4().hex[:8]
+    dto = make_test_incident(suffix)
 
     def worker_insert():
-        dto = make_test_incident(suffix)
         with UnitOfWork(session_factory) as uow:
             return uow.incidents.create_incident(dto)
 
@@ -401,5 +546,200 @@ def test_postgres_uow_avoids_incrementing_offender_on_duplicate(session_factory)
         repo = OffenderHistoryRepository(session)
         # MUST STILL BE 1: duplicate replays must not increment offender history!
         assert repo.get_ip_history(test_ip).offense_count == 1
+    finally:
+        session.close()
+
+
+def test_postgres_idempotency_individual_event_ref_fields_and_multiplicity(session_factory):
+    """Verifies that altering ANY individual event-reference field or multiplicity raises IdempotencyConflictError."""
+    suffix = uuid.uuid4().hex[:8]
+    now = datetime(2026, 10, 28, 12, 0, 0, tzinfo=UTC)
+
+    base_ref = EventRefData(
+        event_source="zeek",
+        source_event_id=f"evt-{suffix}",
+        raw_event_hash=f"hash-{suffix}",
+        event_timestamp=now,
+        source_ip="10.0.0.1",
+        destination_port=443,
+        user_identifier="alice",
+    )
+    dto_base = make_test_incident(suffix, event_refs=[base_ref])
+
+    with UnitOfWork(session_factory) as uow:
+        res = uow.incidents.create_incident(dto_base)
+        assert res.created is True
+
+    # 1. Changing event_source individually raises IdempotencyConflictError
+    ref_changed_src = EventRefData(
+        event_source="suricata",
+        source_event_id=f"evt-{suffix}",
+        raw_event_hash=f"hash-{suffix}",
+        event_timestamp=now,
+        source_ip="10.0.0.1",
+        destination_port=443,
+        user_identifier="alice",
+    )
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(make_test_incident(suffix, event_refs=[ref_changed_src]))
+
+    # 2. Changing source_event_id individually raises IdempotencyConflictError
+    ref_changed_eid = EventRefData(
+        event_source="zeek",
+        source_event_id=f"evt-{suffix}-other",
+        raw_event_hash=f"hash-{suffix}",
+        event_timestamp=now,
+        source_ip="10.0.0.1",
+        destination_port=443,
+        user_identifier="alice",
+    )
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(make_test_incident(suffix, event_refs=[ref_changed_eid]))
+
+    # 3. Changing raw_event_hash individually raises IdempotencyConflictError
+    ref_changed_hash = EventRefData(
+        event_source="zeek",
+        source_event_id=f"evt-{suffix}",
+        raw_event_hash=f"hash-{suffix}-different",
+        event_timestamp=now,
+        source_ip="10.0.0.1",
+        destination_port=443,
+        user_identifier="alice",
+    )
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(make_test_incident(suffix, event_refs=[ref_changed_hash]))
+
+    # 4. Changing event_timestamp individually raises IdempotencyConflictError
+    ref_changed_ts = EventRefData(
+        event_source="zeek",
+        source_event_id=f"evt-{suffix}",
+        raw_event_hash=f"hash-{suffix}",
+        event_timestamp=now + timedelta(seconds=60),
+        source_ip="10.0.0.1",
+        destination_port=443,
+        user_identifier="alice",
+    )
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(make_test_incident(suffix, event_refs=[ref_changed_ts]))
+
+    # 5. Changing source_ip individually raises IdempotencyConflictError
+    ref_changed_ip = EventRefData(
+        event_source="zeek",
+        source_event_id=f"evt-{suffix}",
+        raw_event_hash=f"hash-{suffix}",
+        event_timestamp=now,
+        source_ip="10.0.0.99",
+        destination_port=443,
+        user_identifier="alice",
+    )
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(make_test_incident(suffix, event_refs=[ref_changed_ip]))
+
+    # 6. Changing destination_port individually raises IdempotencyConflictError
+    ref_changed_port = EventRefData(
+        event_source="zeek",
+        source_event_id=f"evt-{suffix}",
+        raw_event_hash=f"hash-{suffix}",
+        event_timestamp=now,
+        source_ip="10.0.0.1",
+        destination_port=8443,
+        user_identifier="alice",
+    )
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(make_test_incident(suffix, event_refs=[ref_changed_port]))
+
+    # 7. Changing user_identifier individually raises IdempotencyConflictError
+    ref_changed_user = EventRefData(
+        event_source="zeek",
+        source_event_id=f"evt-{suffix}",
+        raw_event_hash=f"hash-{suffix}",
+        event_timestamp=now,
+        source_ip="10.0.0.1",
+        destination_port=443,
+        user_identifier="mallory",
+    )
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(make_test_incident(suffix, event_refs=[ref_changed_user]))
+
+    # 8. Changing multiplicity (e.g. duplicate reference) raises IdempotencyConflictError
+    dto_multiplicity = make_test_incident(suffix, event_refs=[base_ref, base_ref])
+    with UnitOfWork(session_factory) as uow:
+        with pytest.raises(IdempotencyConflictError, match="payload mismatch"):
+            uow.incidents.create_incident(dto_multiplicity)
+
+    # 9. Exact identical replay returns created=False and existing incident
+    dto_replay = make_test_incident(suffix, event_refs=[base_ref])
+    with UnitOfWork(session_factory) as uow:
+        res_replay = uow.incidents.create_incident(dto_replay)
+        assert res_replay.created is False
+        assert res_replay.incident.id == res.incident.id
+
+
+def test_postgres_idempotency_replay_without_event_id_stable_hash(session_factory):
+    """Verifies that an event without an upstream event_id derives a stable deterministic reference ID and replays cleanly."""
+    suffix = uuid.uuid4().hex[:8]
+    stable_hash = f"hash-{suffix}-deterministic"
+    derived_id = f"evt-suricata-{stable_hash[:16]}"
+    now = datetime(2026, 10, 28, 12, 0, 0, tzinfo=UTC)
+
+    ref = EventRefData(
+        event_source="suricata",
+        source_event_id=derived_id,
+        raw_event_hash=stable_hash,
+        event_timestamp=now,
+        source_ip="10.0.0.5",
+        destination_port=80,
+        user_identifier="test_user",
+    )
+    dto = make_test_incident(suffix, event_refs=[ref])
+
+    with UnitOfWork(session_factory) as uow:
+        res1 = uow.incidents.create_incident(dto)
+        assert res1.created is True
+
+    # Replay with identical derived reference
+    with UnitOfWork(session_factory) as uow:
+        res2 = uow.incidents.create_incident(dto)
+        assert res2.created is False
+        assert res2.incident.id == res1.incident.id
+
+
+def test_postgres_idempotency_replay_does_not_increment_audit_records(session_factory):
+    """Verifies that duplicate replay never creates duplicate audit log records."""
+    suffix = uuid.uuid4().hex[:8]
+    dto = make_test_incident(suffix)
+
+    # Initial creation
+    with UnitOfWork(session_factory) as uow:
+        res1 = uow.persist_incident_lifecycle(dto)
+        assert res1.created is True
+
+    session = session_factory()
+    try:
+        audit_count_before = session.execute(
+            select(func.count(AuditLogModel.id)).where(AuditLogModel.incident_id == res1.incident.id)
+        ).scalar() or 0
+        assert audit_count_before > 0
+    finally:
+        session.close()
+
+    # Replay identical incident
+    with UnitOfWork(session_factory) as uow:
+        res2 = uow.persist_incident_lifecycle(dto)
+        assert res2.created is False
+
+    session = session_factory()
+    try:
+        audit_count_after = session.execute(
+            select(func.count(AuditLogModel.id)).where(AuditLogModel.incident_id == res1.incident.id)
+        ).scalar() or 0
+        assert audit_count_after == audit_count_before
     finally:
         session.close()
