@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     func,
     text,
@@ -231,4 +232,73 @@ class AuditLogModel(Base):
         CheckConstraint(
             "length(trim(correlation_id)) > 0", name="chk_audit_logs_correlation_not_blank"
         ),
+    )
+
+
+class IngestionCheckpointModel(Base):
+    """Tracks persistent ingestion watermarks, batch sequence, and worker lease state."""
+
+    __tablename__ = "ingestion_checkpoints"
+
+    stream_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    last_processed_timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    last_processed_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    batch_sequence: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    events_processed_count: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="IDLE", server_default=text("'IDLE'")
+    )
+    lease_owner: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("retry_count >= 0", name="chk_ingestion_checkpoints_retry_nonneg"),
+        CheckConstraint("events_processed_count >= 0", name="chk_ingestion_checkpoints_count_nonneg"),
+        CheckConstraint("length(trim(stream_id)) > 0", name="chk_ingestion_checkpoints_stream_not_blank"),
+    )
+
+
+class DeadLetterEventModel(Base):
+    """Quarantines permanently invalid or poison events without halting ingestion batches."""
+
+    __tablename__ = "dead_letter_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    stream_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    event_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    raw_event_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    error_reason: Mapped[str] = mapped_column(String(256), nullable=False)
+    error_details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="QUARANTINED", server_default=text("'QUARANTINED'")
+    )
+    quarantined_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("length(trim(stream_id)) > 0", name="chk_dead_letter_stream_not_blank"),
+        CheckConstraint("length(trim(raw_event_hash)) > 0", name="chk_dead_letter_hash_not_blank"),
+        Index("ix_dead_letter_stream_quarantine", "stream_id", "quarantined_at"),
     )

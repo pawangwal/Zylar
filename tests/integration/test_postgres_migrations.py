@@ -93,6 +93,8 @@ def test_alembic_migration_lifecycle(disposable_test_db):
         "user_history",
         "risk_history",
         "audit_logs",
+        "ingestion_checkpoints",
+        "dead_letter_events",
     }
     assert expected.issubset(tables)
 
@@ -144,6 +146,51 @@ def test_alembic_migration_lifecycle(disposable_test_db):
                         ) VALUES (
                             '   ', 'req:test-blank-id', NOW(), 'Test',
                             50, 'Medium', 'NEW'
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: blank checkpoint stream_id
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO ingestion_checkpoints (
+                            stream_id, last_processed_timestamp
+                        ) VALUES (
+                            '   ', NOW()
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: negative checkpoint retry_count
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO ingestion_checkpoints (
+                            stream_id, last_processed_timestamp, retry_count
+                        ) VALUES (
+                            'valid-stream', NOW(), -1
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: blank dead letter hash
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO dead_letter_events (
+                            stream_id, raw_event_hash, error_reason
+                        ) VALUES (
+                            'valid-stream', '   ', 'bad format'
                         )
                         """
                     )

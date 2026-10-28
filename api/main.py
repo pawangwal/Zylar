@@ -34,12 +34,14 @@ from zylar.core.security import (
 )
 from zylar.core.settings import get_settings
 from zylar.domain.workflow import WorkflowRequest
+from zylar.ingestion.engine import CheckpointedIngestionWorker
 from zylar.persistence.database import (
     DatabaseManager,
     get_database_manager,
     get_session,
 )
 from zylar.persistence.repositories import OffenderHistoryRepository
+from zylar.persistence.unit_of_work import UnitOfWork
 
 settings = get_settings()
 configure_logging(settings)
@@ -50,43 +52,16 @@ REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "reports")
 
 
 def check_for_threats() -> None:
-    """Background task to poll Elasticsearch and trigger workflows if anomalies detected."""
-    logger.info("Autonomous System: Scanning for threats...")
-    try:
-        es = Elasticsearch([ES_HOST], request_timeout=settings.request_timeout_seconds)
-        now = datetime.now(UTC)
-        past = now - timedelta(seconds=30)
-        query = {
-            "query": {
-                "range": {
-                    "timestamp": {"gte": past.isoformat(), "lte": now.isoformat()}
-                }
-            },
-            "size": 500,
-        }
-        res = es.search(index=settings.elasticsearch_index, body=query)
-        logs = [hit["_source"] for hit in res["hits"]["hits"]]
-
-        if not logs:
-            logger.info("No logs in the last 30s.")
-            return
-
-        # Pre-check for anomalies locally before running the full LLM heavy graph
-        state = analyze_logs_node({"raw_logs": logs})
-        state = detect_anomalies_node(state)
-
-        if state.get("anomalies"):
-            logger.warning(
-                "Detected %d anomalies! Triggering full workflow...", len(state["anomalies"])
-            )
-            graph = build_workflow()
-            final_state = graph.invoke({"raw_logs": logs})
-            logger.info("Incident %s recorded.", final_state.get("incident_id"))
-        else:
-            logger.info("Logs analyzed. No statistical anomalies found.")
-
-    except Exception as e:
-        logger.error("Error in autonomous check: %s", e)
+    """Delegates autonomous ingestion check to CheckpointedIngestionWorker."""
+    worker = getattr(app.state, "ingestion_worker", None)
+    if worker is not None:
+        worker.run_poll_cycle()
+    else:
+        fallback_worker = CheckpointedIngestionWorker(
+            stream_id="elasticsearch-soc-events",
+            settings=settings,
+        )
+        fallback_worker.run_poll_cycle()
 
 
 @asynccontextmanager
@@ -96,10 +71,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.db_manager = db_manager
     logger.info("Shared PostgreSQL DatabaseManager initialized on app.state.")
 
+    worker = CheckpointedIngestionWorker(
+        stream_id="elasticsearch-soc-events",
+        settings=settings,
+        session_factory=db_manager.session_factory,
+    )
+    app.state.ingestion_worker = worker
+
     scheduler = BackgroundScheduler(timezone="UTC")
-    scheduler.add_job(check_for_threats, "interval", seconds=30, id="threat_scan")
+    scheduler.add_job(worker.run_poll_cycle, "interval", seconds=30, id="threat_scan")
     scheduler.start()
-    logger.info("Autonomous background scheduler started in lifespan context.")
+    logger.info("Autonomous checkpointed ingestion scheduler started in lifespan context.")
 
     yield
 
@@ -304,6 +286,52 @@ async def health_ready(request: Request, response: Response) -> dict[str, Any]:
         "checks": checks,
         "timestamp": datetime.now(UTC).isoformat(),
     }
+
+
+@app.get("/api/ingestion/status")
+async def get_ingestion_status(
+    request: Request,
+    current_user: Annotated[UserPrincipal, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Returns ingestion checkpoint progress, watermark lag, and dead-letter queue metrics."""
+    db_mgr: DatabaseManager | None = getattr(request.app.state, "db_manager", None)
+    session_factory = db_mgr.session_factory if db_mgr else None
+
+    def query_status() -> dict[str, Any]:
+        with UnitOfWork(session_factory) as uow:
+            assert uow.checkpoints is not None
+            cp = uow.checkpoints.get("elasticsearch-soc-events")
+            lag = uow.checkpoints.get_checkpoint_lag_seconds("elasticsearch-soc-events")
+            dead_letters = uow.checkpoints.get_dead_letter_count("elasticsearch-soc-events")
+
+        if cp is None:
+            return {
+                "stream_id": "elasticsearch-soc-events",
+                "status": "UNINITIALIZED",
+                "last_processed_timestamp": None,
+                "last_processed_id": None,
+                "batch_sequence": 0,
+                "events_processed_count": 0,
+                "lag_seconds": None,
+                "dead_letters_count": 0,
+                "retry_count": 0,
+                "last_error": None,
+            }
+
+        return {
+            "stream_id": cp.stream_id,
+            "status": cp.status,
+            "last_processed_timestamp": cp.last_processed_timestamp.isoformat(),
+            "last_processed_id": cp.last_processed_id,
+            "batch_sequence": cp.batch_sequence,
+            "events_processed_count": cp.events_processed_count,
+            "lag_seconds": lag,
+            "dead_letters_count": dead_letters,
+            "retry_count": cp.retry_count,
+            "last_error": cp.last_error,
+        }
+
+    return await anyio.to_thread.run_sync(query_status)
 
 
 @app.post("/api/workflow/run")

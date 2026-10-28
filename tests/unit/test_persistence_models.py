@@ -9,8 +9,10 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from zylar.persistence.models import (
     AuditLogModel,
     Base,
+    DeadLetterEventModel,
     IncidentEventRefModel,
     IncidentModel,
+    IngestionCheckpointModel,
     IPHistoryModel,
     RiskHistoryModel,
     UserHistoryModel,
@@ -25,10 +27,12 @@ def test_model_classes_mapped():
     assert UserHistoryModel.__tablename__ == "user_history"
     assert RiskHistoryModel.__tablename__ == "risk_history"
     assert AuditLogModel.__tablename__ == "audit_logs"
+    assert IngestionCheckpointModel.__tablename__ == "ingestion_checkpoints"
+    assert DeadLetterEventModel.__tablename__ == "dead_letter_events"
 
 
-def test_metadata_contains_all_six_tables():
-    """Verifies that Base.metadata registers exactly the six required PostgreSQL tables."""
+def test_metadata_contains_all_eight_tables():
+    """Verifies that Base.metadata registers exactly the eight required PostgreSQL tables."""
     table_names = set(Base.metadata.tables.keys())
     expected = {
         "incidents",
@@ -37,6 +41,8 @@ def test_metadata_contains_all_six_tables():
         "user_history",
         "risk_history",
         "audit_logs",
+        "ingestion_checkpoints",
+        "dead_letter_events",
     }
     assert table_names == expected
 

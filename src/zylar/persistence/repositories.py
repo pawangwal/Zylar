@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -18,8 +20,10 @@ from zylar.persistence.exceptions import (
 )
 from zylar.persistence.models import (
     AuditLogModel,
+    DeadLetterEventModel,
     IncidentEventRefModel,
     IncidentModel,
+    IngestionCheckpointModel,
     IPHistoryModel,
     RiskHistoryModel,
     UserHistoryModel,
@@ -378,3 +382,228 @@ class OffenderHistoryRepository:
         ]
 
         return {"top_ips": top_ips, "top_users": top_users}
+
+
+class CheckpointRepository:
+    """Repository managing persistent ingestion watermarks, lease state, and dead-letter quarantine."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, stream_id: str) -> IngestionCheckpointModel | None:
+        """Retrieves a checkpoint by stream identifier."""
+        stmt = select(IngestionCheckpointModel).where(IngestionCheckpointModel.stream_id == stream_id)
+        return self._session.execute(stmt).scalar_one_or_none()
+
+    def get_or_create(
+        self, stream_id: str, default_start_time: datetime
+    ) -> IngestionCheckpointModel:
+        """Retrieves an existing checkpoint or initializes a new one with the given default watermark."""
+        cp = self.get(stream_id)
+        if cp is not None:
+            return cp
+
+        cp = IngestionCheckpointModel(
+            stream_id=stream_id,
+            last_processed_timestamp=default_start_time,
+            status="IDLE",
+        )
+        self._session.add(cp)
+        self._session.flush()
+        return cp
+
+    def acquire_lease(
+        self,
+        stream_id: str,
+        worker_id: str,
+        lease_seconds: int = 60,
+        default_start_time: datetime | None = None,
+    ) -> bool:
+        """Atomically acquires an ingestion lease for worker_id.
+
+        Returns True if the lease was granted or renewed; False if an unexpired lease
+        is held by another worker.
+        """
+        stmt = (
+            select(IngestionCheckpointModel)
+            .where(IngestionCheckpointModel.stream_id == stream_id)
+            .with_for_update()
+        )
+        checkpoint = self._session.execute(stmt).scalar_one_or_none()
+        now = datetime.now(UTC)
+
+        if checkpoint is None:
+            start_time = default_start_time or now
+            checkpoint = IngestionCheckpointModel(
+                stream_id=stream_id,
+                last_processed_timestamp=start_time,
+                lease_owner=worker_id,
+                lease_expires_at=now + timedelta(seconds=lease_seconds),
+                status="RUNNING",
+            )
+            self._session.add(checkpoint)
+            self._session.flush()
+            return True
+
+        # Check eligibility: expired, owned by this worker, or idle/failed
+        is_expired = checkpoint.lease_expires_at is None or checkpoint.lease_expires_at <= now
+        is_owner = checkpoint.lease_owner == worker_id
+        is_free = checkpoint.lease_owner is None or checkpoint.status in ("IDLE", "FAILED")
+
+        if is_expired or is_owner or is_free:
+            checkpoint.lease_owner = worker_id
+            checkpoint.lease_expires_at = now + timedelta(seconds=lease_seconds)
+            checkpoint.status = "RUNNING"
+            checkpoint.updated_at = now
+            self._session.flush()
+            return True
+
+        return False
+
+    def renew_lease(self, stream_id: str, worker_id: str, lease_seconds: int = 60) -> bool:
+        """Renews an active lease if still held by worker_id."""
+        stmt = (
+            select(IngestionCheckpointModel)
+            .where(IngestionCheckpointModel.stream_id == stream_id)
+            .with_for_update()
+        )
+        checkpoint = self._session.execute(stmt).scalar_one_or_none()
+        now = datetime.now(UTC)
+        if checkpoint is not None and checkpoint.lease_owner == worker_id:
+            checkpoint.lease_expires_at = now + timedelta(seconds=lease_seconds)
+            checkpoint.updated_at = now
+            self._session.flush()
+            return True
+        return False
+
+    def release_lease(self, stream_id: str, worker_id: str) -> None:
+        """Releases the lease if held by worker_id, transitioning to IDLE."""
+        stmt = (
+            select(IngestionCheckpointModel)
+            .where(IngestionCheckpointModel.stream_id == stream_id)
+            .with_for_update()
+        )
+        checkpoint = self._session.execute(stmt).scalar_one_or_none()
+        now = datetime.now(UTC)
+        if checkpoint is not None and checkpoint.lease_owner == worker_id:
+            checkpoint.lease_owner = None
+            checkpoint.lease_expires_at = None
+            checkpoint.status = "IDLE"
+            checkpoint.updated_at = now
+            self._session.flush()
+
+    def advance_checkpoint(
+        self,
+        stream_id: str,
+        new_timestamp: datetime,
+        last_id: str | None = None,
+        processed_count: int = 0,
+        worker_id: str | None = None,
+        lease_seconds: int = 60,
+    ) -> IngestionCheckpointModel:
+        """Advances the persistent checkpoint watermark and sequence.
+
+        Resets retry_count and clears last_error upon durable progress.
+        """
+        stmt = (
+            select(IngestionCheckpointModel)
+            .where(IngestionCheckpointModel.stream_id == stream_id)
+            .with_for_update()
+        )
+        checkpoint = self._session.execute(stmt).scalar_one_or_none()
+        if checkpoint is None:
+            raise RecordNotFoundError(f"Checkpoint for stream '{stream_id}' does not exist.")
+
+        now = datetime.now(UTC)
+        if worker_id is not None and checkpoint.lease_owner != worker_id:
+            if checkpoint.lease_expires_at is not None and checkpoint.lease_expires_at > now:
+                raise PersistenceError(
+                    f"Cannot advance checkpoint: lease held by '{checkpoint.lease_owner}'."
+                )
+
+        checkpoint.last_processed_timestamp = new_timestamp
+        checkpoint.last_processed_id = last_id
+        checkpoint.batch_sequence += 1
+        checkpoint.events_processed_count += processed_count
+        checkpoint.retry_count = 0
+        checkpoint.last_error = None
+        checkpoint.updated_at = now
+        if worker_id is not None:
+            checkpoint.lease_owner = worker_id
+            checkpoint.lease_expires_at = now + timedelta(seconds=lease_seconds)
+
+        self._session.flush()
+        return checkpoint
+
+    def record_failure(
+        self,
+        stream_id: str,
+        error: str,
+        max_retries: int = 5,
+        backoff_seconds: int = 10,
+    ) -> IngestionCheckpointModel:
+        """Records a batch ingestion failure, increments retry count, and sets cooling-off backoff."""
+        stmt = (
+            select(IngestionCheckpointModel)
+            .where(IngestionCheckpointModel.stream_id == stream_id)
+            .with_for_update()
+        )
+        checkpoint = self._session.execute(stmt).scalar_one_or_none()
+        if checkpoint is None:
+            raise RecordNotFoundError(f"Checkpoint for stream '{stream_id}' does not exist.")
+
+        now = datetime.now(UTC)
+        checkpoint.retry_count += 1
+        checkpoint.last_error = error
+        checkpoint.status = "FAILED" if checkpoint.retry_count >= max_retries else "RETRYING"
+        checkpoint.lease_owner = None
+        checkpoint.lease_expires_at = now + timedelta(seconds=backoff_seconds)
+        checkpoint.updated_at = now
+        self._session.flush()
+        return checkpoint
+
+    def quarantine_events(
+        self, stream_id: str, dead_letters: list[dict[str, Any]]
+    ) -> list[DeadLetterEventModel]:
+        """Persists unprocessable or malformed events into dead_letter_events."""
+        records: list[DeadLetterEventModel] = []
+        for item in dead_letters:
+            payload = item.get("raw_payload", {})
+            raw_hash = item.get("raw_event_hash")
+            if not raw_hash:
+                raw_hash = hashlib.sha256(
+                    json.dumps(payload, sort_keys=True, default=str).encode()
+                ).hexdigest()
+
+            record = DeadLetterEventModel(
+                stream_id=stream_id,
+                event_id=item.get("event_id"),
+                raw_event_hash=raw_hash,
+                raw_payload=payload,
+                error_reason=item.get("error_reason", "UNKNOWN_ERROR"),
+                error_details=item.get("error_details"),
+                status=item.get("status", "QUARANTINED"),
+            )
+            self._session.add(record)
+            records.append(record)
+
+        self._session.flush()
+        return records
+
+    def get_dead_letter_count(self, stream_id: str | None = None) -> int:
+        """Returns the total number of quarantined dead-letter events."""
+        stmt = select(func.count(DeadLetterEventModel.id))
+        if stream_id is not None:
+            stmt = stmt.where(DeadLetterEventModel.stream_id == stream_id)
+        return int(self._session.execute(stmt).scalar() or 0)
+
+    def get_checkpoint_lag_seconds(self, stream_id: str) -> float | None:
+        """Returns elapsed seconds between now and the last processed watermark."""
+        cp = self.get(stream_id)
+        if cp is None:
+            return None
+        now = datetime.now(UTC)
+        ts = cp.last_processed_timestamp
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        return max(0.0, (now - ts).total_seconds())

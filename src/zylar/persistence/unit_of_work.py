@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from zylar.persistence.database import get_database_manager
 from zylar.persistence.dtos import IncidentCreate, PersistIncidentResult
 from zylar.persistence.exceptions import PersistenceError
-from zylar.persistence.repositories import IncidentRepository, OffenderHistoryRepository
+from zylar.persistence.repositories import (
+    CheckpointRepository,
+    IncidentRepository,
+    OffenderHistoryRepository,
+)
 
 
 class UnitOfWork:
@@ -24,6 +28,7 @@ class UnitOfWork:
         self._committed: bool = False
         self.incidents: IncidentRepository | None = None
         self.offenders: OffenderHistoryRepository | None = None
+        self.checkpoints: CheckpointRepository | None = None
 
     @property
     def session(self) -> Session:
@@ -39,6 +44,7 @@ class UnitOfWork:
         self._committed = False
         self.incidents = IncidentRepository(self._session)
         self.offenders = OffenderHistoryRepository(self._session)
+        self.checkpoints = CheckpointRepository(self._session)
         return self
 
     def commit(self) -> None:
@@ -111,3 +117,4 @@ class UnitOfWork:
                 self._session = None
                 self.incidents = None
                 self.offenders = None
+                self.checkpoints = None

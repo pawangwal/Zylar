@@ -24,13 +24,16 @@ from zylar.persistence.exceptions import (
 from zylar.persistence.models import (
     AuditLogModel,
     Base,
+    DeadLetterEventModel,
     IncidentEventRefModel,
     IncidentModel,
+    IngestionCheckpointModel,
     IPHistoryModel,
     RiskHistoryModel,
     UserHistoryModel,
 )
 from zylar.persistence.repositories import (
+    CheckpointRepository,
     IncidentRepository,
     OffenderHistoryRepository,
 )
@@ -39,11 +42,13 @@ from zylar.persistence.unit_of_work import UnitOfWork
 __all__ = [
     "AuditLogModel",
     "Base",
+    "CheckpointRepository",
     "ConcurrencyError",
     "ConstraintViolationError",
     "DatabaseConfigurationError",
     "DatabaseConnectionError",
     "DatabaseManager",
+    "DeadLetterEventModel",
     "EventRefData",
     "IdempotencyConflictError",
     "IPHistoryModel",
@@ -51,6 +56,7 @@ __all__ = [
     "IncidentEventRefModel",
     "IncidentModel",
     "IncidentRepository",
+    "IngestionCheckpointModel",
     "OffenderHistoryRepository",
     "PersistIncidentResult",
     "PersistenceError",

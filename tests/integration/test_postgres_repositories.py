@@ -102,6 +102,12 @@ def clean_postgres_test_data(db_manager):
                 conn.execute(
                     text("DELETE FROM user_history WHERE username LIKE 'test_user_%'")
                 )
+                conn.execute(
+                    text("DELETE FROM dead_letter_events WHERE stream_id LIKE 'test-%'")
+                )
+                conn.execute(
+                    text("DELETE FROM ingestion_checkpoints WHERE stream_id LIKE 'test-%'")
+                )
 
     cleanup()
     yield

@@ -1,3 +1,5 @@
+from typing import Any
+
 from langgraph.graph import StateGraph, END
 from agents.state import AgentState
 from agents.log_analyzer import analyze_logs_node
@@ -9,7 +11,7 @@ from agents.risk_agent import calculate_risk_node
 from agents.mitigation_agent import generate_mitigation_node
 from agents.report_agent import generate_report_node
 
-def build_workflow() -> StateGraph:
+def build_workflow() -> Any:
     """Builds the LangGraph deterministic workflow for ZYLAR."""
     workflow = StateGraph(AgentState)
 
