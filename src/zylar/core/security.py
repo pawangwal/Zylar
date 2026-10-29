@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -346,9 +347,10 @@ def sanitize_audit_details(
 
 
 class LoginThrottler:
-    """In-memory rate limiter and lockout mechanism for authentication attempts.
+    """Thread-safe in-memory rate limiter and lockout mechanism for authentication attempts.
 
     Enforces maximum failed attempts per IP address and per username over a sliding window.
+    Protects internal state with a reentrant lock and bounds tracked keys to prevent memory exhaustion.
     """
 
     def __init__(
@@ -356,59 +358,99 @@ class LoginThrottler:
         max_attempts: int = 5,
         window_seconds: int = 300,
         lockout_seconds: int = 900,
+        max_tracked_keys: int = 10_000,
     ) -> None:
         self.max_attempts = max_attempts
         self.window_seconds = window_seconds
         self.lockout_seconds = lockout_seconds
+        self.max_tracked_keys = max_tracked_keys
+        self._lock = threading.RLock()
         self._failures: dict[str, list[datetime]] = {}
         self._lockouts: dict[str, datetime] = {}
 
+    def _prune_expired_locked(self, now: datetime) -> None:
+        """Internal helper to prune expired lockout and failure entries while holding the lock."""
+        cutoff = now - timedelta(seconds=self.window_seconds)
+
+        # 1. Prune expired lockouts
+        expired_lockouts = [k for k, exp in self._lockouts.items() if exp <= now]
+        for k in expired_lockouts:
+            del self._lockouts[k]
+            self._failures.pop(k, None)
+
+        # 2. Prune expired failures
+        empty_keys = []
+        for k, timestamps in self._failures.items():
+            valid = [t for t in timestamps if t > cutoff]
+            if not valid:
+                empty_keys.append(k)
+            else:
+                self._failures[k] = valid
+        for k in empty_keys:
+            del self._failures[k]
+
+        # 3. If still oversized, evict oldest entries
+        if len(self._failures) > self.max_tracked_keys:
+            excess = len(self._failures) - self.max_tracked_keys
+            for k in list(self._failures.keys())[:excess]:
+                del self._failures[k]
+                self._lockouts.pop(k, None)
+
     def is_locked(self, key: str) -> bool:
         """Returns True if the key is currently locked out."""
-        now = datetime.now(UTC)
-        locked_until = self._lockouts.get(key)
-        if locked_until is not None:
-            if now < locked_until:
-                return True
-            del self._lockouts[key]
-            self._failures.pop(key, None)
-        return False
+        with self._lock:
+            now = datetime.now(UTC)
+            locked_until = self._lockouts.get(key)
+            if locked_until is not None:
+                if now < locked_until:
+                    return True
+                del self._lockouts[key]
+                self._failures.pop(key, None)
+            return False
 
     def check_rate_limit(self, key: str) -> None:
         """Raises HTTP 429 if the key is currently locked out."""
-        if self.is_locked(key):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many failed authentication attempts. Please try again later.",
-                headers={"Retry-After": str(self.lockout_seconds)},
-            )
+        with self._lock:
+            if self.is_locked(key):
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Too many failed authentication attempts. Please try again later.",
+                    headers={"Retry-After": str(self.lockout_seconds)},
+                )
 
     def record_failure(self, key: str) -> None:
         """Records a failed authentication attempt, locking out if threshold exceeded."""
-        now = datetime.now(UTC)
-        cutoff = now - timedelta(seconds=self.window_seconds)
-        attempts = [t for t in self._failures.get(key, []) if t > cutoff]
-        attempts.append(now)
-        self._failures[key] = attempts
+        with self._lock:
+            now = datetime.now(UTC)
+            cutoff = now - timedelta(seconds=self.window_seconds)
+            attempts = [t for t in self._failures.get(key, []) if t > cutoff]
+            attempts.append(now)
+            self._failures[key] = attempts
 
-        if len(attempts) >= self.max_attempts:
-            self._lockouts[key] = now + timedelta(seconds=self.lockout_seconds)
-            logger.warning(
-                "Authentication key '%s' locked out for %d seconds after %d failed attempts",
-                key,
-                self.lockout_seconds,
-                len(attempts),
-            )
+            if len(attempts) >= self.max_attempts:
+                self._lockouts[key] = now + timedelta(seconds=self.lockout_seconds)
+                logger.warning(
+                    "Authentication key '%s' locked out for %d seconds after %d failed attempts",
+                    key,
+                    self.lockout_seconds,
+                    len(attempts),
+                )
+
+            # Prune if tracking many keys to prevent unbounded memory growth
+            if len(self._failures) > self.max_tracked_keys // 2:
+                self._prune_expired_locked(now)
 
     def record_success(self, key: str) -> None:
         """Clears failures and lockouts upon successful authentication."""
-        self._failures.pop(key, None)
-        self._lockouts.pop(key, None)
+        with self._lock:
+            self._failures.pop(key, None)
+            self._lockouts.pop(key, None)
 
     def reset(self) -> None:
         """Clears all stored failures and lockouts (useful for test resets)."""
-        self._failures.clear()
-        self._lockouts.clear()
+        with self._lock:
+            self._failures.clear()
+            self._lockouts.clear()
 
 
 _login_throttler: LoginThrottler | None = None

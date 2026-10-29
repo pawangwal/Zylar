@@ -724,3 +724,127 @@ def test_checkpoint_lag_seconds():
     lag = repo.get_checkpoint_lag_seconds("stream-lag")
     assert lag is not None
     assert 590 <= lag <= 610
+
+
+def test_checkpoint_advance_boundary_expiry_equality_rejected():
+    mock_session = MagicMock(spec=Session)
+    repo = CheckpointRepository(mock_session)
+
+    fixed_now = datetime(2026, 10, 29, 12, 0, 0, tzinfo=UTC)
+    cp = IngestionCheckpointModel(
+        stream_id="stream-boundary-exact",
+        last_processed_timestamp=fixed_now - timedelta(minutes=5),
+        lease_owner="worker-1",
+        lease_generation=2,
+        lease_expires_at=fixed_now,  # Exact equality: lease_expires_at == now
+        status="PROCESSING",
+    )
+    mock_exec = MagicMock()
+    mock_exec.scalar_one_or_none.return_value = cp
+    mock_session.execute.return_value = mock_exec
+
+    # Advance checkpoint should reject lease_expires_at == now (strictly requires > now)
+    with pytest.raises(StaleLeaseError) as exc_info:
+        repo.advance_checkpoint(
+            stream_id="stream-boundary-exact",
+            new_timestamp=fixed_now,
+            worker_id="worker-1",
+            lease_generation=2,
+        )
+    assert "lease is missing or expired" in str(exc_info.value)
+
+
+def test_checkpoint_record_failure_boundary_expiry_equality_rejected():
+    mock_session = MagicMock(spec=Session)
+    repo = CheckpointRepository(mock_session)
+
+    fixed_now = datetime(2026, 10, 29, 12, 0, 0, tzinfo=UTC)
+    cp = IngestionCheckpointModel(
+        stream_id="stream-fail-boundary-exact",
+        last_processed_timestamp=fixed_now - timedelta(minutes=5),
+        lease_owner="worker-1",
+        lease_generation=2,
+        lease_expires_at=fixed_now,  # Exact equality: lease_expires_at == current_now
+        status="PROCESSING",
+    )
+    mock_exec = MagicMock()
+    mock_exec.scalar_one_or_none.return_value = cp
+    mock_session.execute.return_value = mock_exec
+
+    with pytest.raises(StaleLeaseError) as exc_info:
+        repo.record_failure(
+            stream_id="stream-fail-boundary-exact",
+            error="Boundary fail",
+            worker_id="worker-1",
+            lease_generation=2,
+            now=fixed_now,
+        )
+    assert "lease is missing or expired" in str(exc_info.value)
+
+
+def test_checkpoint_advance_boundary_just_before_and_after():
+    mock_session = MagicMock(spec=Session)
+    repo = CheckpointRepository(mock_session)
+
+    now = datetime.now(UTC)
+    # Just before: now - 1ms
+    cp_expired = IngestionCheckpointModel(
+        stream_id="stream-just-expired",
+        last_processed_timestamp=now - timedelta(minutes=1),
+        lease_owner="worker-1",
+        lease_generation=3,
+        lease_expires_at=now - timedelta(milliseconds=1),
+        status="PROCESSING",
+    )
+    mock_exec = MagicMock()
+    mock_exec.scalar_one_or_none.return_value = cp_expired
+    mock_session.execute.return_value = mock_exec
+
+    with pytest.raises(StaleLeaseError):
+        repo.advance_checkpoint(
+            stream_id="stream-just-expired",
+            new_timestamp=now,
+            worker_id="worker-1",
+            lease_generation=3,
+        )
+
+    # Just after: now + 500ms
+    cp_valid = IngestionCheckpointModel(
+        stream_id="stream-just-valid",
+        last_processed_timestamp=now - timedelta(minutes=1),
+        lease_owner="worker-1",
+        lease_generation=3,
+        lease_expires_at=now + timedelta(milliseconds=500),
+        status="PROCESSING",
+    )
+    mock_exec.scalar_one_or_none.return_value = cp_valid
+    res = repo.advance_checkpoint(
+        stream_id="stream-just-valid",
+        new_timestamp=now,
+        worker_id="worker-1",
+        lease_generation=3,
+    )
+    assert res.last_processed_timestamp == now
+
+
+def test_checkpoint_rejects_non_positive_lease_seconds():
+    mock_session = MagicMock(spec=Session)
+    repo = CheckpointRepository(mock_session)
+
+    with pytest.raises(ValueError, match="lease_seconds must be positive"):
+        repo.acquire_lease("stream-1", "worker-1", lease_seconds=0)
+
+    with pytest.raises(ValueError, match="lease_seconds must be positive"):
+        repo.acquire_lease("stream-1", "worker-1", lease_seconds=-5)
+
+    with pytest.raises(ValueError, match="lease_seconds must be positive"):
+        repo.renew_lease("stream-1", "worker-1", lease_generation=1, lease_seconds=0)
+
+    with pytest.raises(ValueError, match="lease_seconds must be positive"):
+        repo.advance_checkpoint(
+            "stream-1",
+            datetime.now(UTC),
+            worker_id="worker-1",
+            lease_generation=1,
+            lease_seconds=-1,
+        )

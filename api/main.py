@@ -189,10 +189,24 @@ class TokenResponse(BaseModel):
     expires_in: int
 
 
+def get_client_ip(request: Request) -> str:
+    """Extracts client IP, respecting X-Forwarded-For only when the immediate peer is in trusted_proxies."""
+    remote_host = request.client.host if request.client else "127.0.0.1"
+    trusted = set(settings.trusted_proxies)
+    if remote_host in trusted:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            hops = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+            for ip in reversed(hops):
+                if ip not in trusted:
+                    return ip
+    return remote_host
+
+
 @app.post("/api/auth/token", response_model=TokenResponse)
 async def login_for_access_token(req: TokenRequest, request: Request) -> TokenResponse:
     """Authenticates against the trusted identity store and returns a signed access token."""
-    client_ip = request.client.host if request.client else "127.0.0.1"
+    client_ip = get_client_ip(request)
     throttler = get_login_throttler()
 
     # Check both IP and user throttles before authenticating

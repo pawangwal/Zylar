@@ -78,6 +78,11 @@ class CheckpointedIngestionWorker:
         self._session_factory = session_factory
         self._es_client = es_client
         self._workflow_invoker = workflow_invoker
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive.")
+        if lease_duration_seconds <= 0:
+            raise ValueError("lease_duration_seconds must be positive.")
+
         self.batch_size = batch_size
         self.lease_duration_seconds = lease_duration_seconds
         self.max_consecutive_failures = max_consecutive_failures
@@ -194,9 +199,16 @@ class CheckpointedIngestionWorker:
         eligible_hits: list[dict[str, Any]] = []
         for hit in hits:
             doc_id = str(hit.get("_id", ""))
-            src = hit.get("_source", {})
-            event_id = str(src.get("event_id") or doc_id)
-            raw_ts = src.get("timestamp")
+            src = hit.get("_source") or {}
+            event_id = str(src.get("event_id") or doc_id) if isinstance(src, dict) else doc_id
+            hit_sort = hit.get("sort")
+            es_sort_id = (
+                str(hit_sort[1])
+                if isinstance(hit_sort, list) and len(hit_sort) > 1 and hit_sort[1] is not None and str(hit_sort[1]).strip()
+                else None
+            )
+            cursor_id = es_sort_id or event_id
+            raw_ts = src.get("timestamp") if isinstance(src, dict) else None
 
             try:
                 event_ts = parse_event_timestamp(raw_ts, event_id=event_id)
@@ -208,7 +220,7 @@ class CheckpointedIngestionWorker:
             # Defensive tie-breaker skip for records already committed in previous batches
             if event_ts < watermark_ts:
                 continue
-            if event_ts == watermark_ts and watermark_id is not None and event_id <= watermark_id:
+            if event_ts == watermark_ts and watermark_id is not None and cursor_id <= watermark_id:
                 continue
 
             eligible_hits.append(hit)
@@ -237,6 +249,12 @@ class CheckpointedIngestionWorker:
         for hit in eligible_hits:
             doc_id = str(hit.get("_id", ""))
             src = hit.get("_source")
+            hit_sort = hit.get("sort")
+            es_sort_id = (
+                str(hit_sort[1])
+                if isinstance(hit_sort, list) and len(hit_sort) > 1 and hit_sort[1] is not None and str(hit_sort[1]).strip()
+                else None
+            )
 
             if not isinstance(src, dict):
                 dead_letters.append(
@@ -247,12 +265,14 @@ class CheckpointedIngestionWorker:
                         "error_details": f"Expected dict for _source, got {type(src).__name__}",
                     }
                 )
+                cursor_id = es_sort_id or doc_id
                 # Advance cursor tie-breaker past unparseable source
-                if latest_event_id is None or doc_id > latest_event_id:
-                    latest_event_id = doc_id
+                if latest_event_id is None or cursor_id > latest_event_id:
+                    latest_event_id = cursor_id
                 continue
 
             event_id = str(src.get("event_id") or doc_id)
+            cursor_id = es_sort_id or event_id
             try:
                 parsed_ts = parse_event_timestamp(src.get("timestamp"), event_id=event_id)
             except Exception as exc:
@@ -265,8 +285,8 @@ class CheckpointedIngestionWorker:
                     }
                 )
                 # Advance cursor past malformed event without fabricating timestamp
-                if latest_event_id is None or event_id > latest_event_id:
-                    latest_event_id = event_id
+                if latest_event_id is None or cursor_id > latest_event_id:
+                    latest_event_id = cursor_id
                 continue
 
             # Ensure event carries deterministic ID
@@ -280,10 +300,10 @@ class CheckpointedIngestionWorker:
 
             if parsed_ts > latest_event_ts or (
                 parsed_ts == latest_event_ts
-                and (latest_event_id is None or event_id > latest_event_id)
+                and (latest_event_id is None or cursor_id > latest_event_id)
             ):
                 latest_event_ts = parsed_ts
-                latest_event_id = event_id
+                latest_event_id = cursor_id
 
         # 6. If all hits were poisoned (no valid records), advance checkpoint and quarantine in one transaction
         if not valid_records:
@@ -323,6 +343,32 @@ class CheckpointedIngestionWorker:
 
             workflow_result: dict[str, Any] = {}
             if state.get("anomalies") or self._workflow_invoker is not None:
+                # Renew lease before long-running workflow/inference execution
+                with UnitOfWork(self._session_factory) as uow:
+                    assert uow.checkpoints is not None
+                    renewed = uow.checkpoints.renew_lease(
+                        stream_id=self.stream_id,
+                        worker_id=self.worker_id,
+                        lease_generation=lease_generation,
+                        lease_seconds=self.lease_duration_seconds,
+                    )
+                    uow.commit()
+                if not renewed:
+                    logger.warning(
+                        "Worker '%s' lost lease for stream '%s' (generation %d) prior to workflow execution.",
+                        self.worker_id,
+                        self.stream_id,
+                        lease_generation,
+                    )
+                    return IngestionBatchResult(
+                        stream_id=self.stream_id,
+                        status="LEASE_LOST",
+                        events_read=len(hits),
+                        events_processed=0,
+                        checkpoint_timestamp=watermark_ts,
+                        checkpoint_id=watermark_id,
+                    )
+
                 logger.warning(
                     "Executing workflow for stream '%s' (anomalies=%d, custom_invoker=%s)...",
                     self.stream_id,

@@ -187,3 +187,29 @@ def test_ingestion_status_masks_raw_internal_exception():
     assert "super_secret_db_pass" not in res.text
     assert "super_secret_db_pass" not in data.get("last_error", "")
     assert "postgresql://zylar_user:***@127.0.0.1:5432/zylar_db" in data["last_error"]
+
+
+def test_trusted_proxy_client_ip_resolution():
+    from unittest.mock import MagicMock
+
+    from api.main import get_client_ip
+
+    mock_req = MagicMock()
+    mock_req.client.host = "127.0.0.1"  # in trusted_proxies
+    mock_req.headers.get.return_value = "203.0.113.195, 127.0.0.1"
+
+    resolved_ip = get_client_ip(mock_req)
+    assert resolved_ip == "203.0.113.195"
+
+
+def test_untrusted_proxy_ignores_forwarded_for():
+    from unittest.mock import MagicMock
+
+    from api.main import get_client_ip
+
+    mock_req = MagicMock()
+    mock_req.client.host = "198.51.100.5"  # not in trusted_proxies
+    mock_req.headers.get.return_value = "10.0.0.1"
+
+    resolved_ip = get_client_ip(mock_req)
+    assert resolved_ip == "198.51.100.5"

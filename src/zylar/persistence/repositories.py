@@ -448,6 +448,9 @@ class CheckpointRepository:
         Enforces retry cooldown (next_retry_at), checks lease expiry,
         increments lease_generation monotonically, and sets status to 'PROCESSING'.
         """
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive.")
+
         now = datetime.now(UTC)
         start_time = default_start_time or now
 
@@ -529,6 +532,9 @@ class CheckpointRepository:
         lease_seconds: int = 60,
     ) -> bool:
         """Renews an active lease if still held by worker_id and matching lease_generation."""
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive.")
+
         stmt = (
             select(IngestionCheckpointModel)
             .where(IngestionCheckpointModel.stream_id == stream_id)
@@ -595,6 +601,9 @@ class CheckpointRepository:
         Raises StaleLeaseError if the worker's fencing token is stale, missing, or expired.
         Resets retry_count and next_retry_at, and clears last_error upon durable progress.
         """
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive.")
+
         stmt = (
             select(IngestionCheckpointModel)
             .where(IngestionCheckpointModel.stream_id == stream_id)
@@ -620,7 +629,7 @@ class CheckpointRepository:
                 f"(generation {lease_generation})."
             )
 
-        if checkpoint.lease_expires_at is None or checkpoint.lease_expires_at < now:
+        if checkpoint.lease_expires_at is None or checkpoint.lease_expires_at <= now:
             expiry_str = (
                 checkpoint.lease_expires_at.isoformat() if checkpoint.lease_expires_at else "None"
             )
@@ -631,8 +640,8 @@ class CheckpointRepository:
 
         checkpoint.last_processed_timestamp = new_timestamp
         checkpoint.last_processed_id = last_id
-        checkpoint.batch_sequence += 1
-        checkpoint.events_processed_count += processed_count
+        checkpoint.batch_sequence = (checkpoint.batch_sequence or 0) + 1
+        checkpoint.events_processed_count = (checkpoint.events_processed_count or 0) + processed_count
         checkpoint.retry_count = 0
         checkpoint.next_retry_at = None
         checkpoint.last_error = None
@@ -690,7 +699,7 @@ class CheckpointRepository:
                 f"(generation {lease_generation})."
             )
 
-        if checkpoint.lease_expires_at is None or checkpoint.lease_expires_at < current_now:
+        if checkpoint.lease_expires_at is None or checkpoint.lease_expires_at <= current_now:
             expiry_str = (
                 checkpoint.lease_expires_at.isoformat() if checkpoint.lease_expires_at else "None"
             )

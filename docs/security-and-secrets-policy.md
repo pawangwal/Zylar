@@ -41,6 +41,14 @@ Zylar enforces a strict separation between configuration, credentials, and sourc
    - Error handlers and logging pipelines must never output raw authentication headers, bearer tokens, full connection strings with passwords, or unsanitized payloads.
 4. **Least-Privilege Docker Builds:**
    - `.dockerignore` excludes `.env`, `.venv`, `.git`, test databases, caches, and report files from entering container image layers.
+5. **Elasticsearch Deployment Security Boundary:**
+   - Development Compose (`elk_setup/docker-compose.yml`) binds ports strictly to `127.0.0.1` and disables X-Pack security for friction-free local iteration.
+   - In production or shared infrastructure, disabling Elasticsearch security is strictly prohibited; deployments must enable X-Pack security, TLS on HTTP and transport layers, authenticate via `ZYLAR_ELASTICSEARCH_URL`, and isolate container networks.
+6. **Reverse Proxy and IP Forwarding Trust Boundary:**
+   - The API verifies `X-Forwarded-For` headers exclusively when the immediate connecting peer matches an IP in `ZYLAR_TRUSTED_PROXIES` (defaults to loopback `127.0.0.1`, `::1`). Untrusted connections use the socket peer IP, preventing client header spoofing.
+7. **Thread-Safe Throttling & Sanitized Audit Logging:**
+   - Authentication brute-force attempts are bounded by a thread-safe `LoginThrottler` using `threading.RLock()` and bounded memory pruning.
+   - All audit log details are sanitized recursively (`sanitize_audit_details`) to strip credentials, tokens, and secrets before persistence.
 
 ---
 

@@ -567,3 +567,247 @@ def test_report_agent_legacy_caller_persists_immediately():
         mock_uow.persist_incident_lifecycle.assert_called_once()
         assert result["incident_id"] == "ZYLAR-INC-SAVED-123"
         assert "incident_dto" not in result
+
+
+def test_worker_rejects_non_positive_lease_duration_or_batch_size():
+    with pytest.raises(ValueError, match="lease_duration_seconds must be positive"):
+        CheckpointedIngestionWorker(lease_duration_seconds=0)
+
+    with pytest.raises(ValueError, match="lease_duration_seconds must be positive"):
+        CheckpointedIngestionWorker(lease_duration_seconds=-10)
+
+    with pytest.raises(ValueError, match="batch_size must be positive"):
+        CheckpointedIngestionWorker(batch_size=0)
+
+
+def test_worker_cursor_uses_hit_sort_values_when_available(mock_uow_ctx):
+    mock_uow_ctx.checkpoints.acquire_lease.return_value = (True, 1)
+    mock_uow_ctx.checkpoints.renew_lease.return_value = True
+    watermark_time = datetime(2026, 10, 28, 12, 0, 0, tzinfo=UTC)
+    mock_uow_ctx.checkpoints.get.return_value = IngestionCheckpointModel(
+        stream_id="test-stream",
+        last_processed_timestamp=watermark_time,
+        last_processed_id="doc-000",
+        lease_generation=1,
+    )
+
+    mock_es = MagicMock()
+    # Hit returns authoritative sort values from Elasticsearch
+    mock_es.search.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_id": "elastic-doc-id-99",
+                    "_source": {
+                        "timestamp": (watermark_time + timedelta(seconds=1)).isoformat(),
+                        "event_type": "ssh_login",
+                        "source_ip": "10.0.0.1",
+                    },
+                    "sort": [1793198401000, "es-authoritative-tiebreaker-token"],
+                }
+            ]
+        }
+    }
+
+    mock_invoker = MagicMock(return_value={"incident_id": "INC-SORT-TEST"})
+    worker = CheckpointedIngestionWorker(
+        stream_id="test-stream",
+        worker_id="test-worker",
+        es_client=mock_es,
+        workflow_invoker=mock_invoker,
+    )
+
+    result = worker.poll_and_process_batch()
+    assert result.status == "SUCCESS"
+    assert result.checkpoint_id == "es-authoritative-tiebreaker-token"
+    mock_uow_ctx.checkpoints.advance_checkpoint.assert_called_once()
+    _, kwargs = mock_uow_ctx.checkpoints.advance_checkpoint.call_args
+    assert kwargs.get("last_id") == "es-authoritative-tiebreaker-token"
+
+
+def test_worker_lease_lost_prior_to_workflow_aborts_safely(mock_uow_ctx):
+    mock_uow_ctx.checkpoints.acquire_lease.return_value = (True, 1)
+    # Simulate lease lost/expired during initial steps
+    mock_uow_ctx.checkpoints.renew_lease.return_value = False
+    watermark_time = datetime(2026, 10, 28, 12, 0, 0, tzinfo=UTC)
+    mock_uow_ctx.checkpoints.get.return_value = IngestionCheckpointModel(
+        stream_id="test-stream",
+        last_processed_timestamp=watermark_time,
+        last_processed_id=None,
+        lease_generation=1,
+    )
+
+    mock_es = MagicMock()
+    mock_es.search.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_id": "doc-1",
+                    "_source": {
+                        "event_id": "evt-1",
+                        "timestamp": (watermark_time + timedelta(seconds=1)).isoformat(),
+                        "event_type": "ssh_login",
+                        "source_ip": "10.0.0.1",
+                    },
+                }
+            ]
+        }
+    }
+
+    mock_invoker = MagicMock()
+    worker = CheckpointedIngestionWorker(
+        stream_id="test-stream",
+        worker_id="test-worker",
+        es_client=mock_es,
+        workflow_invoker=mock_invoker,
+    )
+
+    result = worker.poll_and_process_batch()
+    assert result.status == "LEASE_LOST"
+    mock_invoker.assert_not_called()
+    mock_uow_ctx.checkpoints.advance_checkpoint.assert_not_called()
+
+
+def test_worker_poison_matrix_valid_then_malformed_same_timestamp(mock_uow_ctx):
+    mock_uow_ctx.checkpoints.acquire_lease.return_value = (True, 1)
+    mock_uow_ctx.checkpoints.renew_lease.return_value = True
+    watermark_time = datetime(2026, 10, 28, 12, 0, 0, tzinfo=UTC)
+    mock_uow_ctx.checkpoints.get.return_value = IngestionCheckpointModel(
+        stream_id="test-stream",
+        last_processed_timestamp=watermark_time,
+        last_processed_id=None,
+        lease_generation=1,
+    )
+
+    ts = (watermark_time + timedelta(seconds=5)).isoformat()
+    mock_es = MagicMock()
+    mock_es.search.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_id": "doc-valid",
+                    "_source": {
+                        "event_id": "evt-01-valid",
+                        "timestamp": ts,
+                        "event_type": "ssh_login",
+                        "source_ip": "10.0.0.1",
+                    },
+                },
+                {
+                    "_id": "doc-poison",
+                    "_source": {
+                        "event_id": "evt-02-poison",
+                        "timestamp": "MALFORMED_TIMESTAMP",
+                    },
+                },
+            ]
+        }
+    }
+
+    mock_invoker = MagicMock(return_value={"incident_id": "INC-TEST"})
+    worker = CheckpointedIngestionWorker(
+        stream_id="test-stream",
+        worker_id="test-worker",
+        es_client=mock_es,
+        workflow_invoker=mock_invoker,
+    )
+
+    result = worker.poll_and_process_batch()
+    assert result.status == "SUCCESS"
+    assert result.events_processed == 1
+    assert result.dead_letters_count == 1
+    assert result.checkpoint_id == "evt-02-poison"
+
+
+def test_worker_poison_matrix_malformed_then_valid_same_timestamp(mock_uow_ctx):
+    mock_uow_ctx.checkpoints.acquire_lease.return_value = (True, 1)
+    mock_uow_ctx.checkpoints.renew_lease.return_value = True
+    watermark_time = datetime(2026, 10, 28, 12, 0, 0, tzinfo=UTC)
+    mock_uow_ctx.checkpoints.get.return_value = IngestionCheckpointModel(
+        stream_id="test-stream",
+        last_processed_timestamp=watermark_time,
+        last_processed_id=None,
+        lease_generation=1,
+    )
+
+    ts = (watermark_time + timedelta(seconds=5)).isoformat()
+    mock_es = MagicMock()
+    mock_es.search.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_id": "doc-poison",
+                    "_source": {
+                        "event_id": "evt-01-poison",
+                        "timestamp": "INVALID_TIMESTAMP",
+                    },
+                },
+                {
+                    "_id": "doc-valid",
+                    "_source": {
+                        "event_id": "evt-02-valid",
+                        "timestamp": ts,
+                        "event_type": "ssh_login",
+                        "source_ip": "10.0.0.1",
+                    },
+                },
+            ]
+        }
+    }
+
+    mock_invoker = MagicMock(return_value={"incident_id": "INC-TEST"})
+    worker = CheckpointedIngestionWorker(
+        stream_id="test-stream",
+        worker_id="test-worker",
+        es_client=mock_es,
+        workflow_invoker=mock_invoker,
+    )
+
+    result = worker.poll_and_process_batch()
+    assert result.status == "SUCCESS"
+    assert result.events_processed == 1
+    assert result.dead_letters_count == 1
+    assert result.checkpoint_id == "evt-02-valid"
+
+
+def test_worker_poison_matrix_missing_event_id_with_distinct_doc_id(mock_uow_ctx):
+    mock_uow_ctx.checkpoints.acquire_lease.return_value = (True, 1)
+    mock_uow_ctx.checkpoints.renew_lease.return_value = True
+    watermark_time = datetime(2026, 10, 28, 12, 0, 0, tzinfo=UTC)
+    mock_uow_ctx.checkpoints.get.return_value = IngestionCheckpointModel(
+        stream_id="test-stream",
+        last_processed_timestamp=watermark_time,
+        last_processed_id=None,
+        lease_generation=1,
+    )
+
+    ts = (watermark_time + timedelta(seconds=5)).isoformat()
+    mock_es = MagicMock()
+    mock_es.search.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_id": "es-doc-distinct-12345",
+                    "_source": {
+                        # No event_id in _source
+                        "timestamp": ts,
+                        "event_type": "ssh_login",
+                        "source_ip": "10.0.0.2",
+                    },
+                }
+            ]
+        }
+    }
+
+    mock_invoker = MagicMock(return_value={"incident_id": "INC-TEST"})
+    worker = CheckpointedIngestionWorker(
+        stream_id="test-stream",
+        worker_id="test-worker",
+        es_client=mock_es,
+        workflow_invoker=mock_invoker,
+    )
+
+    result = worker.poll_and_process_batch()
+    assert result.status == "SUCCESS"
+    assert result.checkpoint_id == "es-doc-distinct-12345"
+

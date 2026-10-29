@@ -296,3 +296,37 @@ def test_dashboard_escape_dot_identifier():
     assert escape_dot_identifier("Node\nwith\rnewline") == "Node\\nwith\\rnewline"
     # Empty
     assert escape_dot_identifier("") == ""
+
+
+def test_login_throttler_thread_safety_concurrency():
+    import concurrent.futures
+
+    from zylar.core.security import LoginThrottler
+
+    throttler = LoginThrottler(max_attempts=10, window_seconds=60, lockout_seconds=300)
+    key = "ip:10.0.0.99"
+
+    def attempt_failure():
+        throttler.record_failure(key)
+
+    # Concurrently execute 30 failures across 10 threads
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(attempt_failure) for _ in range(30)]
+        concurrent.futures.wait(futures)
+
+    # After 30 attempts, throttler must be safely locked
+    assert throttler.is_locked(key) is True
+    assert len(throttler._failures.get(key, [])) == 30
+
+
+def test_login_throttler_capacity_bounding():
+    from zylar.core.security import LoginThrottler
+
+    # Capacity set to 10 keys
+    throttler = LoginThrottler(max_attempts=5, window_seconds=1, lockout_seconds=2, max_tracked_keys=10)
+
+    for i in range(25):
+        throttler.record_failure(f"user:user_{i}")
+
+    # Tracked keys must be bounded around max_tracked_keys
+    assert len(throttler._failures) <= 15

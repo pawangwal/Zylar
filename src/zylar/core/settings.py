@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     bootstrap_admin_username: str = Field(default="admin", min_length=1, max_length=64)
     bootstrap_admin_password: SecretStr = SecretStr("change-admin-password-in-production")
     token_expire_minutes: PositiveInt = 60
+    trusted_proxies: list[str] = Field(
+        default_factory=lambda: ["127.0.0.1", "::1"],
+        description="Trusted reverse proxy IP addresses allowed to provide forwarded headers",
+    )
 
     @property
     def redacted_database_url(self) -> str:
