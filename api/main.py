@@ -17,11 +17,12 @@ from elasticsearch import Elasticsearch
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from orchestrator.workflow_graph import build_workflow
 from pydantic import BaseModel, Field
 
 from zylar.core.logging import configure_logging
+from zylar.core.metrics import get_metrics_collector
 from zylar.core.security import (
     Role,
     UserPrincipal,
@@ -323,6 +324,13 @@ async def health_ready(request: Request, response: Response) -> dict[str, Any]:
     }
 
 
+@app.get("/metrics", response_class=PlainTextResponse)
+def prometheus_metrics() -> PlainTextResponse:
+    """Exposes operational, ingestion, and SOC detection metrics in Prometheus exposition format."""
+    text = get_metrics_collector().get_prometheus_text()
+    return PlainTextResponse(text, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
 @app.get("/api/ingestion/status")
 async def get_ingestion_status(
     request: Request,
@@ -376,11 +384,25 @@ async def run_workflow(
     current_user: Annotated[UserPrincipal, Depends(require_roles(Role.ANALYST, Role.ADMIN))],
 ) -> dict[str, Any]:
     """Triggers the full agentic workflow on a bounded set of normalized events."""
+    collector = get_metrics_collector()
+    raw_logs = [ev.model_dump(mode="json") for ev in req.events]
+    collector.record_event_ingested(len(raw_logs))
+    t0 = datetime.now(UTC)
+
     try:
         graph = build_workflow()
-        raw_logs = [ev.model_dump(mode="json") for ev in req.events]
         # Execute synchronous LangGraph workflow on bounded worker pool
         final_state = await anyio.to_thread.run_sync(graph.invoke, {"raw_logs": raw_logs})
+        duration_sec = (datetime.now(UTC) - t0).total_seconds()
+        collector.record_workflow_execution("success", duration_sec)
+
+        rule_matches = final_state.get("rule_matches", [])
+        if isinstance(rule_matches, list):
+            for rm in rule_matches:
+                if isinstance(rm, dict) and "rule_id" in rm:
+                    collector.record_detection_rule_fired(str(rm["rule_id"]))
+                elif hasattr(rm, "rule_id"):
+                    collector.record_detection_rule_fired(str(rm.rule_id))
 
         return {
             "incident_id": final_state.get("incident_id"),
@@ -390,6 +412,8 @@ async def run_workflow(
             "mitigation_plan": final_state.get("mitigation_plan"),
         }
     except Exception as exc:
+        duration_sec = (datetime.now(UTC) - t0).total_seconds()
+        collector.record_workflow_execution("failed", duration_sec)
         corr_id = getattr(request.state, "correlation_id", "unknown")
         logger.exception("Workflow execution error [%s]: %s", corr_id, type(exc).__name__)
         raise HTTPException(
