@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -14,7 +16,7 @@ SYNTHETIC_DB_URL = (
 
 def test_default_settings_in_development(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("ZYLAR_ENVIRONMENT", raising=False)
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.environment == "development"
     assert settings.elasticsearch_index == "zylar-logs"
     assert settings.max_batch_size == 500
@@ -22,8 +24,16 @@ def test_default_settings_in_development(monkeypatch: pytest.MonkeyPatch):
 
 def test_environment_override_from_env_var(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ZYLAR_ENVIRONMENT", "test")
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.environment == "test"
+
+
+def test_settings_loads_from_explicit_env_file(tmp_path: Path):
+    env_file = tmp_path / "custom.env"
+    env_file.write_text("ZYLAR_ENVIRONMENT=test\nZYLAR_MAX_BATCH_SIZE=250\n")
+    settings = Settings(_env_file=env_file)
+    assert settings.environment == "test"
+    assert settings.max_batch_size == 250
 
 
 def test_production_rejects_default_signing_key():
@@ -40,6 +50,7 @@ def test_production_rejects_default_signing_key():
 def test_production_rejects_short_signing_key():
     with pytest.raises(ValidationError, match="ZYLAR_AUTH_SIGNING_KEY"):
         Settings(
+            _env_file=None,
             environment="production",
             auth_signing_key="too-short-key",
             bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
@@ -61,6 +72,7 @@ def test_production_rejects_default_admin_password():
 def test_production_rejects_placeholder_database_url():
     with pytest.raises(ValidationError, match="ZYLAR_DATABASE_URL"):
         Settings(
+            _env_file=None,
             environment="production",
             auth_signing_key=SYNTHETIC_KEY_32,
             bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
@@ -71,6 +83,7 @@ def test_production_rejects_placeholder_database_url():
 def test_production_rejects_empty_database_password():
     with pytest.raises(ValidationError, match="non-empty database password"):
         Settings(
+            _env_file=None,
             environment="production",
             auth_signing_key=SYNTHETIC_KEY_32,
             bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
@@ -81,6 +94,7 @@ def test_production_rejects_empty_database_password():
 def test_production_rejects_short_database_password():
     with pytest.raises(ValidationError, match="at least 8 characters"):
         Settings(
+            _env_file=None,
             environment="production",
             auth_signing_key=SYNTHETIC_KEY_32,
             bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
@@ -91,6 +105,7 @@ def test_production_rejects_short_database_password():
 def test_production_rejects_non_postgresql_scheme():
     with pytest.raises(ValidationError, match="PostgreSQL scheme"):
         Settings(
+            _env_file=None,
             environment="production",
             auth_signing_key=SYNTHETIC_KEY_32,
             bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
@@ -102,6 +117,7 @@ def test_production_rejects_url_encoded_placeholder_password():
     # 'change%2Dme' unquotes to 'change-me'
     with pytest.raises(ValidationError, match="known placeholder"):
         Settings(
+            _env_file=None,
             environment="production",
             auth_signing_key=SYNTHETIC_KEY_32,
             bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
@@ -111,6 +127,7 @@ def test_production_rejects_url_encoded_placeholder_password():
 
 def test_production_accepts_valid_secrets_with_url_encoding():
     settings = Settings(
+        _env_file=None,
         environment="production",
         auth_signing_key=SYNTHETIC_KEY_32,
         bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
@@ -122,7 +139,8 @@ def test_production_accepts_valid_secrets_with_url_encoding():
 
 def test_redacted_database_url_masks_password():
     settings = Settings(
-        database_url="postgresql+psycopg://app_user:secret_password_here@db.example.internal:5432/soc_db"
+        _env_file=None,
+        database_url="postgresql+psycopg://app_user:secret_password_here@db.example.internal:5432/soc_db",
     )
     redacted = settings.redacted_database_url
     assert "secret_password_here" not in redacted

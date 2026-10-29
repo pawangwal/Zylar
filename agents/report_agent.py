@@ -12,6 +12,7 @@ from typing import Any
 from fpdf import FPDF, XPos, YPos
 
 from agents.state import AgentState
+from zylar.analysis.risk_scoring import parse_valid_port
 from zylar.persistence.dtos import EventRefData, IncidentCreate
 from zylar.persistence.unit_of_work import UnitOfWork
 
@@ -107,12 +108,56 @@ def compute_canonical_event_signature(
     destination_port: int | None,
     user_identifier: str | None,
 ) -> str:
-    """Canonical single-event signature containing all identity-relevant fields."""
     ts_str = event_ts.isoformat()
     sip = source_ip or ""
     dport = str(destination_port) if destination_port is not None else ""
     user = user_identifier or ""
     return f"{event_src}:{source_event_id}:{raw_hash}:{ts_str}:{sip}:{dport}:{user}"
+
+
+def compute_canonical_batch_fingerprint(anomalies: list[dict[str, Any]] | None) -> str:
+    """Computes a deterministic 64-char SHA-256 fingerprint representing the canonical identities
+    of all constituent anomalies in a batch.
+    """
+    if not anomalies:
+        return hashlib.sha256(b"empty_anomaly_batch").hexdigest()
+
+    signatures: list[str] = []
+    for a in anomalies:
+        if not isinstance(a, dict):
+            continue
+        raw_hash = extract_or_compute_raw_hash(a)
+        event_src = extract_event_source(a)
+        source_event_id = derive_event_reference_id(a, event_src, raw_hash)
+        ts_val = a.get("timestamp")
+        if ts_val:
+            try:
+                event_ts = parse_event_timestamp(ts_val, event_id=source_event_id)
+            except Exception:
+                event_ts = datetime.datetime.fromtimestamp(0, tz=datetime.UTC)
+        else:
+            event_ts = datetime.datetime.fromtimestamp(0, tz=datetime.UTC)
+
+        source_ip = str(a["source_ip"]).strip() if a.get("source_ip") else None
+        dest_port = parse_valid_port(a.get("destination_port"))
+        user_id = (
+            str(a.get("user") or a.get("username")).strip()
+            if (a.get("user") or a.get("username"))
+            else None
+        )
+        sig = compute_canonical_event_signature(
+            event_src=event_src,
+            source_event_id=source_event_id,
+            raw_hash=raw_hash,
+            event_ts=event_ts,
+            source_ip=source_ip,
+            destination_port=dest_port,
+            user_identifier=user_id,
+        )
+        signatures.append(sig)
+
+    signatures.sort()
+    return hashlib.sha256("||".join(signatures).encode("utf-8")).hexdigest()
 
 
 def save_report_artifacts(
@@ -204,7 +249,7 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
         source_event_id = derive_event_reference_id(a, event_src, raw_hash)
         event_ts = parse_event_timestamp(a.get("timestamp"), event_id=source_event_id)
         source_ip = str(a["source_ip"]).strip() if a.get("source_ip") else None
-        dest_port = int(a["destination_port"]) if a.get("destination_port") is not None else None
+        dest_port = parse_valid_port(a.get("destination_port"))
         user_id = (
             str(a.get("user") or a.get("username")).strip()
             if (a.get("user") or a.get("username"))
@@ -262,9 +307,12 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
         threat_dict = {"data": raw_threat}
 
     if "risk_policy_version" in state:
-        threat_dict["risk_policy_version"] = state["risk_policy_version"]
+        threat_dict["risk_policy_version"] = str(state["risk_policy_version"])
     if "risk_breakdown" in state:
-        threat_dict["risk_breakdown"] = state["risk_breakdown"]
+        bd = state["risk_breakdown"]
+        threat_dict["risk_breakdown"] = dict(bd) if hasattr(bd, "items") else bd
+    batch_fingerprint = compute_canonical_batch_fingerprint(anomalies)
+    threat_dict["batch_fingerprint"] = batch_fingerprint
 
     incident_dto = IncidentCreate(
         incident_id=candidate_incident_id,
@@ -286,6 +334,7 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
     # return the validated incident DTO without committing or opening UnitOfWork.
     if state.get("defer_persistence"):
         timestamp_str = incident_dto.timestamp.isoformat().replace("+00:00", "Z")
+        raw_bd = threat_dict.get("risk_breakdown", {})
         report_content = {
             "incident_id": candidate_incident_id,
             "timestamp": timestamp_str,
@@ -293,7 +342,8 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
             "risk_category": incident_dto.risk_category,
             "risk_score": incident_dto.risk_score,
             "risk_policy_version": str(threat_dict.get("risk_policy_version", "risk-policy-v1")),
-            "risk_breakdown": threat_dict.get("risk_breakdown", {}),
+            "risk_breakdown": dict(raw_bd) if hasattr(raw_bd, "items") else raw_bd,
+            "batch_fingerprint": batch_fingerprint,
             "threat_intel": incident_dto.threat_intel,
             "mitigation_plan": incident_dto.mitigation_plan,
             "anomalous_events_count": incident_dto.anomalous_events_count,
@@ -328,6 +378,7 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
         result.incident.threat_intel if isinstance(result.incident.threat_intel, dict) else {}
     )
 
+    persisted_bd = persisted_threat.get("risk_breakdown", state.get("risk_breakdown", {}))
     report_content = {
         "incident_id": authoritative_id,
         "timestamp": timestamp_str,
@@ -339,7 +390,8 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
                 "risk_policy_version", state.get("risk_policy_version", "risk-policy-v1")
             )
         ),
-        "risk_breakdown": persisted_threat.get("risk_breakdown", state.get("risk_breakdown", {})),
+        "risk_breakdown": dict(persisted_bd) if hasattr(persisted_bd, "items") else persisted_bd,
+        "batch_fingerprint": str(persisted_threat.get("batch_fingerprint", batch_fingerprint)),
         "threat_intel": result.incident.threat_intel,
         "mitigation_plan": result.incident.mitigation_plan,
         "anomalous_events_count": result.incident.anomalous_events_count,

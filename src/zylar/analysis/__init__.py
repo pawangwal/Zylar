@@ -7,6 +7,7 @@ from zylar.analysis.risk_scoring import (
     RiskPolicy,
     RiskScoreResult,
     evaluate_risk,
+    parse_valid_port,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "RiskPolicy",
     "RiskScoreResult",
     "evaluate_risk",
+    "parse_valid_port",
 ]

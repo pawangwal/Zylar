@@ -8,6 +8,7 @@ from zylar.analysis.risk_scoring import (
     RiskPolicy,
     RiskScoreResult,
     evaluate_risk,
+    parse_valid_port,
 )
 
 
@@ -186,3 +187,212 @@ def test_breakdown_contains_both_raw_and_weighted():
 
     # Backward compatible breakdown property
     assert res.breakdown == res.raw_factors
+
+
+def test_risk_score_result_mappings_are_deeply_immutable():
+    payload = {
+        "attack_classification": "Brute Force",
+        "anomalies": [{"source_ip": "10.0.0.1", "destination_port": 22}],
+        "historical_recurrence": 10,
+        "graph_centrality": 15.0,
+    }
+    res = evaluate_risk(payload)
+
+    with pytest.raises(TypeError):
+        res.raw_factors["volume"] = 999.0  # type: ignore[index]
+
+    with pytest.raises(TypeError):
+        res.weighted_contributions["volume"] = 999.0  # type: ignore[index]
+
+    with pytest.raises(TypeError):
+        res.breakdown["volume"] = 999.0  # type: ignore[index]
+
+
+def test_custom_category_thresholds_in_policy():
+    custom_policy = RiskPolicy(
+        threshold_critical=90,
+        threshold_high=75,
+        threshold_medium=50,
+        weight_volume=0.0,
+        weight_severity=0.0,
+        weight_recurrence=0.0,
+        weight_centrality=0.0,
+        weight_criticality=1.0,
+        default_port_criticality=80,
+    )
+    # Score 80 with standard policy would be Critical (>=80), but under custom (critical=90, high=75) it is High!
+    res = evaluate_risk(
+        {"anomalies": [{"source_ip": "1.1.1.1"}], "attack_classification": "Port Scan"},
+        policy=custom_policy,
+    )
+    assert res.risk_score == 80
+    assert res.risk_category == "High"
+
+
+def test_invalid_category_thresholds_rejected():
+    # Not strictly increasing
+    with pytest.raises(ValidationError, match="Thresholds must be strictly ordered"):
+        RiskPolicy(threshold_critical=70, threshold_high=80, threshold_medium=40)
+
+    with pytest.raises(ValidationError, match="Thresholds must be strictly ordered"):
+        RiskPolicy(threshold_critical=80, threshold_high=50, threshold_medium=50)
+
+    with pytest.raises(ValidationError, match="Thresholds must be strictly ordered"):
+        RiskPolicy(threshold_critical=80, threshold_high=60, threshold_medium=0)
+
+
+def test_invalid_numeric_inputs_raise_value_error():
+    base = {"attack_classification": "Brute Force", "anomalies": [{"source_ip": "1.1.1.1"}]}
+
+    # NaN in recurrence
+    with pytest.raises(ValueError, match="must be a finite number"):
+        evaluate_risk({**base, "historical_recurrence": float("nan")})
+
+    # Infinity in recurrence
+    with pytest.raises(ValueError, match="must be a finite number"):
+        evaluate_risk({**base, "historical_recurrence": float("inf")})
+
+    with pytest.raises(ValueError, match="must be a finite number"):
+        evaluate_risk({**base, "historical_recurrence": float("-inf")})
+
+    # Boolean in recurrence
+    with pytest.raises(ValueError, match="Boolean values are not valid numeric inputs"):
+        evaluate_risk({**base, "historical_recurrence": True})
+
+    # NaN in centrality
+    with pytest.raises(ValueError, match="must be a finite number"):
+        evaluate_risk({**base, "graph_centrality": float("nan")})
+
+    # Infinity in centrality
+    with pytest.raises(ValueError, match="must be a finite number"):
+        evaluate_risk({**base, "graph_centrality": float("inf")})
+
+    # Boolean in centrality
+    with pytest.raises(ValueError, match="Boolean values are not valid numeric inputs"):
+        evaluate_risk({**base, "graph_centrality": False})
+
+    # Non-numeric string in recurrence
+    with pytest.raises(ValueError, match="Invalid non-numeric input"):
+        evaluate_risk({**base, "historical_recurrence": "bad-number"})
+
+
+def test_out_of_range_and_boolean_ports_safely_ignored():
+    res = evaluate_risk(
+        {
+            "attack_classification": "Port Scan",
+            "anomalies": [
+                {"source_ip": "10.0.0.1", "destination_port": -1},
+                {"source_ip": "10.0.0.1", "destination_port": 0},
+                {"source_ip": "10.0.0.1", "destination_port": 70000},
+                {"source_ip": "10.0.0.1", "destination_port": True},  # Boolean ignored
+                {"source_ip": "10.0.0.1", "destination_port": 65536},
+            ],
+        }
+    )
+    # All invalid ports ignored, falls back to default_port_criticality = 50
+    assert res.raw_factors["criticality"] == 50.0
+
+
+def test_classification_case_insensitivity_and_unknown_fallback():
+    # Case insensitivity
+    r_lower = evaluate_risk(
+        {"attack_classification": "ransomware", "anomalies": [{"source_ip": "1.1.1.1"}]}
+    )
+    r_upper = evaluate_risk(
+        {"attack_classification": "RANSOMWARE", "anomalies": [{"source_ip": "1.1.1.1"}]}
+    )
+    r_title = evaluate_risk(
+        {"attack_classification": "Ransomware", "anomalies": [{"source_ip": "1.1.1.1"}]}
+    )
+    assert r_lower.raw_factors["severity"] == 100.0
+    assert r_upper.raw_factors["severity"] == 100.0
+    assert r_title.raw_factors["severity"] == 100.0
+    assert r_lower.risk_score == r_upper.risk_score == r_title.risk_score
+
+    # Unknown classification gets fallback severity 40
+    r_unknown = evaluate_risk(
+        {"attack_classification": "Unknown Exploit 99", "anomalies": [{"source_ip": "1.1.1.1"}]}
+    )
+    assert r_unknown.raw_factors["severity"] == 40.0
+
+
+def test_graph_centrality_scale_contract():
+    # Unit scale policy [0.0 - 1.0]
+    unit_policy = RiskPolicy(centrality_scale="0-1")
+    res_unit = evaluate_risk(
+        {
+            "attack_classification": "Port Scan",
+            "anomalies": [{"source_ip": "1.1.1.1"}],
+            "graph_centrality": 0.45,
+        },
+        policy=unit_policy,
+    )
+    assert res_unit.raw_factors["centrality"] == 45.0
+
+    # Percentage scale policy [0.0 - 100.0] (default)
+    pct_policy = RiskPolicy(centrality_scale="0-100")
+    res_pct = evaluate_risk(
+        {
+            "attack_classification": "Port Scan",
+            "anomalies": [{"source_ip": "1.1.1.1"}],
+            "graph_centrality": 45.0,
+        },
+        policy=pct_policy,
+    )
+    assert res_pct.raw_factors["centrality"] == 45.0
+
+    # Invalid scale
+    with pytest.raises(ValidationError, match="centrality_scale"):
+        RiskPolicy(centrality_scale="invalid-scale")
+
+
+def test_strict_port_parsing_types():
+    # 1. Direct parse_valid_port unit testing
+    assert parse_valid_port(22) == 22
+    assert parse_valid_port("22") == 22
+    assert parse_valid_port(443) == 443
+    assert parse_valid_port("443") == 443
+    assert parse_valid_port(" 80 ") == 80
+
+    # Fractional floats and float strings MUST be rejected (never truncated)
+    assert parse_valid_port(22.5) is None
+    assert parse_valid_port("22.5") is None
+    assert parse_valid_port(80.0) is None
+    assert parse_valid_port("80.0") is None
+
+    # Booleans and other invalid types MUST be rejected
+    assert parse_valid_port(True) is None
+    assert parse_valid_port(False) is None
+    assert parse_valid_port(None) is None
+    assert parse_valid_port("ssh") is None
+    assert parse_valid_port([]) is None
+
+    # Out of range values MUST be rejected
+    assert parse_valid_port(0) is None
+    assert parse_valid_port(-1) is None
+    assert parse_valid_port(65536) is None
+    assert parse_valid_port("70000") is None
+
+    # 2. Risk scoring integration: 22 and "22" resolve to SSH criticality (90)
+    res_int = evaluate_risk(
+        {"attack_classification": "Port Scan", "anomalies": [{"destination_port": 22}]}
+    )
+    assert res_int.raw_factors["criticality"] == 90.0
+
+    res_str = evaluate_risk(
+        {"attack_classification": "Port Scan", "anomalies": [{"destination_port": "22"}]}
+    )
+    assert res_str.raw_factors["criticality"] == 90.0
+
+    # 3. 22.5 and "22.5" MUST be ignored, falling back to default port criticality (50)
+    res_float = evaluate_risk(
+        {"attack_classification": "Port Scan", "anomalies": [{"destination_port": 22.5}]}
+    )
+    assert res_float.raw_factors["criticality"] == 50.0
+
+    res_str_float = evaluate_risk(
+        {"attack_classification": "Port Scan", "anomalies": [{"destination_port": "22.5"}]}
+    )
+    assert res_str_float.raw_factors["criticality"] == 50.0
+
+
