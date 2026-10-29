@@ -262,7 +262,9 @@ async def health_ready(request: Request, response: Response) -> dict[str, Any]:
 
     # 1. Check Elasticsearch
     try:
-        es = Elasticsearch([ES_HOST], request_timeout=2.0)
+        es_kwargs = dict(settings.elasticsearch_client_kwargs)
+        es_kwargs["request_timeout"] = 2.0
+        es = Elasticsearch(**es_kwargs)
         es_ok = await anyio.to_thread.run_sync(es.ping)
         if es_ok:
             checks["elasticsearch"] = "healthy"
@@ -404,7 +406,7 @@ async def get_recent_logs(
 ) -> dict[str, Any]:
     """Fetches recent logs from Elasticsearch for authenticated users."""
     try:
-        es = Elasticsearch([ES_HOST], request_timeout=settings.request_timeout_seconds)
+        es = Elasticsearch(**settings.elasticsearch_client_kwargs)
         now = datetime.now(UTC)
         past = now - timedelta(minutes=minutes)
         query = {

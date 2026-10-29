@@ -4,12 +4,9 @@ import networkx as nx
 import pandas as pd
 import requests
 import streamlit as st
-from dotenv import load_dotenv
 from streamlit_autorefresh import st_autorefresh
 
 from zylar.core.settings import get_settings
-
-load_dotenv()
 
 st.set_page_config(page_title="ZYLAR Autonomous SOC", layout="wide", page_icon="🛡️")
 

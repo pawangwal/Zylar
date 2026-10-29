@@ -7,6 +7,7 @@ import pytest
 from agents.report_agent import generate_report_node
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
 
+from zylar.core.settings import Settings
 from zylar.ingestion.engine import CheckpointedIngestionWorker
 from zylar.persistence.dtos import IncidentCreate
 from zylar.persistence.exceptions import StaleLeaseError
@@ -810,4 +811,18 @@ def test_worker_poison_matrix_missing_event_id_with_distinct_doc_id(mock_uow_ctx
     result = worker.poll_and_process_batch()
     assert result.status == "SUCCESS"
     assert result.checkpoint_id == "es-doc-distinct-12345"
+
+
+def test_worker_default_es_client_uses_settings_kwargs():
+    settings = Settings(
+        elasticsearch_url="http://127.0.0.1:9200",
+        elasticsearch_username="test_user",
+        elasticsearch_password="test_password",
+    )
+    with patch("zylar.ingestion.engine.Elasticsearch") as mock_es_cls:
+        worker = CheckpointedIngestionWorker(settings=settings)
+        client = worker._get_es_client()
+        mock_es_cls.assert_called_once_with(**settings.elasticsearch_client_kwargs)
+        assert client == mock_es_cls.return_value
+
 

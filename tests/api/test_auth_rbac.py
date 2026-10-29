@@ -22,9 +22,15 @@ def ensure_test_users():
 
 
 def test_token_endpoint_authenticates_bootstrap_admin():
+    from zylar.core.settings import get_settings
+
+    settings = get_settings()
     response = client.post(
         "/api/auth/token",
-        json={"username": "admin", "password": "change-admin-password-in-production"},
+        json={
+            "username": settings.bootstrap_admin_username,
+            "password": settings.bootstrap_admin_password.get_secret_value(),
+        },
     )
     assert response.status_code == 200
     data = response.json()
@@ -34,9 +40,12 @@ def test_token_endpoint_authenticates_bootstrap_admin():
 
 
 def test_token_endpoint_rejects_invalid_password():
+    from zylar.core.settings import get_settings
+
+    settings = get_settings()
     response = client.post(
         "/api/auth/token",
-        json={"username": "admin", "password": "wrong-password"},
+        json={"username": settings.bootstrap_admin_username, "password": "wrong-password"},
     )
     assert response.status_code == 401
     assert "Invalid username or password" in response.text

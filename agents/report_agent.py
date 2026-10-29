@@ -255,11 +255,16 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
     # 3. Build validated DTO
     raw_threat = state.get("threat_intel")
     if isinstance(raw_threat, dict):
-        threat_dict = raw_threat
+        threat_dict = dict(raw_threat)
     elif raw_threat is None:
         threat_dict = {}
     else:
         threat_dict = {"data": raw_threat}
+
+    if "risk_policy_version" in state:
+        threat_dict["risk_policy_version"] = state["risk_policy_version"]
+    if "risk_breakdown" in state:
+        threat_dict["risk_breakdown"] = state["risk_breakdown"]
 
     incident_dto = IncidentCreate(
         incident_id=candidate_incident_id,
@@ -287,6 +292,8 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
             "attack_classification": incident_dto.attack_classification,
             "risk_category": incident_dto.risk_category,
             "risk_score": incident_dto.risk_score,
+            "risk_policy_version": str(threat_dict.get("risk_policy_version", "risk-policy-v1")),
+            "risk_breakdown": threat_dict.get("risk_breakdown", {}),
             "threat_intel": incident_dto.threat_intel,
             "mitigation_plan": incident_dto.mitigation_plan,
             "anomalous_events_count": incident_dto.anomalous_events_count,
@@ -317,6 +324,9 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
         )
 
     timestamp_str = result.incident.timestamp.isoformat().replace("+00:00", "Z")
+    persisted_threat = (
+        result.incident.threat_intel if isinstance(result.incident.threat_intel, dict) else {}
+    )
 
     report_content = {
         "incident_id": authoritative_id,
@@ -324,6 +334,12 @@ def generate_report_node(state: AgentState) -> dict[str, Any]:
         "attack_classification": result.incident.attack_classification,
         "risk_category": result.incident.risk_category,
         "risk_score": result.incident.risk_score,
+        "risk_policy_version": str(
+            persisted_threat.get(
+                "risk_policy_version", state.get("risk_policy_version", "risk-policy-v1")
+            )
+        ),
+        "risk_breakdown": persisted_threat.get("risk_breakdown", state.get("risk_breakdown", {})),
         "threat_intel": result.incident.threat_intel,
         "mitigation_plan": result.incident.mitigation_plan,
         "anomalous_events_count": result.incident.anomalous_events_count,

@@ -4,35 +4,35 @@ This directory contains the configuration to run a local Elasticsearch and Kiban
 
 > [!IMPORTANT]
 > **Security Boundary Notice:**
-> The Docker Compose configuration in this directory is strictly intended for **local development and testing**. 
+> The Docker Compose configuration in this directory is intended for **local development and testing**. 
 > - Host published ports bind exclusively to loopback (`127.0.0.1:9200` and `127.0.0.1:5601`) to prevent external network exposure.
-> - Security is disabled (`xpack.security.enabled=false`) to simplify local friction-free test runs.
-> - **Production Deployment Requirements:** In any production or shared container environment, disabling Elasticsearch security is prohibited. Production deployments must:
->   1. Enable X-Pack security (`xpack.security.enabled=true`).
->   2. Configure TLS encryption for internal cluster transport and external HTTP traffic.
->   3. Enforce authenticated access with strong credentials injected via secrets into `ZYLAR_ELASTICSEARCH_URL` (e.g. `https://zylar_app:strong-password@es01:9200`).
->   4. Isolate Docker networks so untrusted containers cannot access the cluster directly.
+> - Authentication is enabled (`xpack.security.enabled=true`) using direct password authentication via `ZYLAR_ELASTICSEARCH_PASSWORD`.
+> - **Production Deployment Requirements:** In any production or shared container environment across multiple hosts:
+>   1. Configure TLS encryption for internal cluster transport and external HTTP traffic.
+>   2. Enforce fine-grained least-privilege roles for ingestion workers and simulators rather than using the default administrative account.
+>   3. Isolate Docker networks so untrusted containers cannot access the cluster directly.
 
 ## Prerequisites
 - Docker
 - Docker Compose
 
 ## Starting the Stack
-Navigate to this directory and run:
+1. Ensure `ZYLAR_ELASTICSEARCH_PASSWORD` is configured in your root `.env` file.
+2. From the repository root, start the stack:
+   ```powershell
+   docker compose --env-file .env -f elk_setup/docker-compose.yml up -d
+   ```
+   *(Or navigate into `elk_setup` and run `docker compose up -d`)*
 
-```bash
-docker-compose up -d
-```
-
-Elasticsearch will be available at `http://127.0.0.1:9200`.
-Kibana will be available at `http://127.0.0.1:5601`.
+Elasticsearch will be available at `http://127.0.0.1:9200` (Basic Auth user `elastic`).
+Kibana will be available at `http://127.0.0.1:5601` (Login with `elastic` and your configured password).
 
 ## Stopping the Stack
 ```bash
-docker-compose down
+docker compose down
 ```
 
-To remove all retained data:
+To remove all retained data (CAUTION: destroys Elasticsearch indices):
 ```bash
-docker-compose down -v
+docker compose down -v
 ```

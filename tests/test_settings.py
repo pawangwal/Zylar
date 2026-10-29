@@ -2,7 +2,7 @@ import json
 import logging
 
 from zylar.core.logging import JsonFormatter
-from zylar.core.settings import get_settings
+from zylar.core.settings import Settings, get_settings
 
 
 def test_settings_use_safe_local_defaults(monkeypatch):
@@ -10,7 +10,7 @@ def test_settings_use_safe_local_defaults(monkeypatch):
     monkeypatch.delenv("ZYLAR_OLLAMA_MODEL", raising=False)
     get_settings.cache_clear()
 
-    settings = get_settings()
+    settings = Settings(_env_file=None)
 
     assert str(settings.elasticsearch_url) == "http://127.0.0.1:9200/"
     assert settings.ollama_model == "mistral"

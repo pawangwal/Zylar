@@ -102,11 +102,17 @@ def test_token_tampering_rejected():
 
 
 def test_user_store_bootstrap_and_authentication():
+    from zylar.core.settings import get_settings
+
+    settings = get_settings()
     store = UserStore()
     # Bootstrap admin should exist
-    admin_principal = store.authenticate("admin", "change-admin-password-in-production")
+    admin_principal = store.authenticate(
+        settings.bootstrap_admin_username,
+        settings.bootstrap_admin_password.get_secret_value(),
+    )
     assert admin_principal is not None
-    assert admin_principal.subject == "admin"
+    assert admin_principal.subject == settings.bootstrap_admin_username
     assert admin_principal.role == Role.ADMIN
 
     # Non-existent user

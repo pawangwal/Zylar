@@ -93,8 +93,7 @@ class CheckpointedIngestionWorker:
     def _get_es_client(self) -> Elasticsearch:
         if self._es_client is None:
             self._es_client = Elasticsearch(
-                [str(self._settings.elasticsearch_url).rstrip("/")],
-                request_timeout=self._settings.request_timeout_seconds,
+                **self._settings.elasticsearch_client_kwargs
             )
         return self._es_client
 

@@ -14,7 +14,7 @@ settings = get_settings()
 ES_HOST = str(settings.elasticsearch_url).rstrip("/")
 INDEX_NAME = settings.elasticsearch_index
 
-es = Elasticsearch([ES_HOST], request_timeout=settings.request_timeout_seconds)
+es = Elasticsearch(**settings.elasticsearch_client_kwargs)
 
 
 def setup_index():

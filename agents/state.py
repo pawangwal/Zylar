@@ -30,6 +30,8 @@ class AgentState(TypedDict, total=False):
     # Risk
     risk_score: int
     risk_category: str
+    risk_policy_version: str
+    risk_breakdown: dict[str, float]
 
     # Mitigation
     mitigation_plan: list[str]

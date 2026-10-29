@@ -1,13 +1,17 @@
-version: '3.8'
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
     container_name: zylar_elasticsearch
+    env_file:
+      - ../.env
     environment:
       - node.name=zylar_node
       - cluster.name=zylar_cluster
       - discovery.type=single-node
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - ELASTIC_PASSWORD=${ZYLAR_ELASTICSEARCH_PASSWORD}
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
     ports:
       - "127.0.0.1:9200:9200"
@@ -19,8 +23,12 @@ services:
   kibana:
     image: docker.elastic.co/kibana/kibana:8.9.0
     container_name: zylar_kibana
+    env_file:
+      - ../.env
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${ZYLAR_ELASTICSEARCH_PASSWORD}
     ports:
       - "127.0.0.1:5601:5601"
     networks:
