@@ -1,0 +1,113 @@
+{
+  "metadata": {
+    "evaluation_timestamp": "2026-10-29T16:26:34.823908+00:00",
+    "corpus_version": "2026.10.1",
+    "rules_version": "2026.10.1",
+    "risk_policy_version": "risk-policy-v1",
+    "total_scenarios_evaluated": 150,
+    "synthetic_evaluation_disclosure": "This benchmark is a synthetic evaluation based on a deterministic labeled corpus (tests/fixtures/synthetic_evaluation_corpus.json). It measures rule engine logic against modeled scenarios and does NOT represent measured real-world Security Operations Center (SOC) performance in production enterprise networks."
+  },
+  "target_thresholds": {
+    "precision": {
+      "target": 0.9,
+      "actual": 1.0,
+      "passed": true
+    },
+    "recall": {
+      "target": 0.85,
+      "actual": 1.0,
+      "passed": true
+    },
+    "f1_score": {
+      "target": 0.87,
+      "actual": 1.0,
+      "passed": true
+    },
+    "false_positive_rate": {
+      "target": 0.05,
+      "actual": 0.0,
+      "passed": true
+    },
+    "all_passed": true
+  },
+  "overall_metrics": {
+    "true_positives": 50,
+    "false_positives": 0,
+    "true_negatives": 100,
+    "false_negatives": 0,
+    "total_evaluated": 150,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "false_positive_rate": 0.0,
+    "precision_denominator": 50,
+    "recall_denominator": 50,
+    "fpr_denominator": 100
+  },
+  "per_rule_metrics": {
+    "RULE_BRUTE_FORCE_AUTH": {
+      "true_positives": 20,
+      "false_positives": 0,
+      "true_negatives": 130,
+      "false_negatives": 0,
+      "total_evaluated": 150,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "false_positive_rate": 0.0,
+      "precision_denominator": 20,
+      "recall_denominator": 20,
+      "fpr_denominator": 130
+    },
+    "RULE_PORT_SCAN_REJECT": {
+      "true_positives": 20,
+      "false_positives": 0,
+      "true_negatives": 130,
+      "false_negatives": 0,
+      "total_evaluated": 150,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "false_positive_rate": 0.0,
+      "precision_denominator": 20,
+      "recall_denominator": 20,
+      "fpr_denominator": 130
+    },
+    "RULE_RANSOMWARE_INDICATOR": {
+      "true_positives": 10,
+      "false_positives": 0,
+      "true_negatives": 140,
+      "false_negatives": 0,
+      "total_evaluated": 150,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "false_positive_rate": 0.0,
+      "precision_denominator": 10,
+      "recall_denominator": 10,
+      "fpr_denominator": 140
+    }
+  },
+  "latency_statistics": {
+    "detection_rules_ms": {
+      "total_samples": 150,
+      "mean_ms": 0.0378,
+      "p50_ms": 0.0207,
+      "p95_ms": 0.0789,
+      "p99_ms": 0.0982,
+      "min_ms": 0.0073,
+      "max_ms": 1.1192,
+      "methodology": "In-process monotonic time (time.perf_counter_ns) for evaluate_detection_rules over normalized events"
+    },
+    "end_to_end_detection_and_risk_ms": {
+      "total_samples": 150,
+      "mean_ms": 0.0535,
+      "p50_ms": 0.0286,
+      "p95_ms": 0.0925,
+      "p99_ms": 0.3147,
+      "min_ms": 0.0168,
+      "max_ms": 1.6747,
+      "methodology": "In-process monotonic time (time.perf_counter_ns) for evaluate_detection_rules + evaluate_risk"
+    }
+  }
+}
