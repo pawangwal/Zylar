@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from zylar.analysis.detection_rules import (
+    RULES_VERSION,
+    DetectionResult,
+    RuleMatch,
+    evaluate_detection_rules,
+)
 from zylar.analysis.risk_scoring import (
     DEFAULT_RISK_POLICY,
     RiskPolicy,
@@ -12,8 +18,12 @@ from zylar.analysis.risk_scoring import (
 
 __all__ = [
     "DEFAULT_RISK_POLICY",
+    "DetectionResult",
+    "RULES_VERSION",
     "RiskPolicy",
     "RiskScoreResult",
+    "RuleMatch",
+    "evaluate_detection_rules",
     "evaluate_risk",
     "parse_valid_port",
 ]

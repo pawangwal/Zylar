@@ -13,6 +13,9 @@ class AgentState(TypedDict, total=False):
 
     # Anomaly Layer
     anomalies: list[dict[str, Any]]
+    statistical_anomalies: list[dict[str, Any]]
+    rule_matches: list[dict[str, Any]]
+    detection_result: dict[str, Any]
 
     # Threat Intelligence
     threat_intel: dict[str, Any]
