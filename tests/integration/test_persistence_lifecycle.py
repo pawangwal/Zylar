@@ -205,6 +205,21 @@ def test_workflow_persists_incident_and_evidence_to_postgres(isolated_reports: P
         assert recheck_offender is not None
         assert recheck_offender.offense_count == initial_offense_count
 
+    # Conflicting replay: reusing the same idempotency key with a changed evidence batch raises IdempotencyConflictError
+    conflicting_benign = generate_deterministic_benign_events(count=20)
+    conflicting_attack = generate_deterministic_brute_force(count=15)
+    conflicting_logs = conflicting_benign + conflicting_attack
+    conflicting_state_input = {
+        "raw_logs": conflicting_logs,
+        "correlation_id": f"test-corr-{uuid.uuid4().hex[:8]}",
+        "idempotency_key": stable_idempotency_key,
+        "actor": "integration-test",
+    }
+    with patch("ollama.Client", return_value=mock_ollama):
+        graph = build_workflow()
+        with pytest.raises(IdempotencyConflictError, match="conflicts with existing incident"):
+            graph.invoke(conflicting_state_input)
+
 
 def test_risk_calculation_queries_postgres_offender_recurrence():
     """Verifies that calculate_risk_node reads recurrence counts from PostgreSQL and scales score."""

@@ -12,11 +12,18 @@ SYNTHETIC_DB_URL = (
 )
 
 
-def test_default_settings_in_development():
+def test_default_settings_in_development(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("ZYLAR_ENVIRONMENT", raising=False)
     settings = Settings()
     assert settings.environment == "development"
     assert settings.elasticsearch_index == "zylar-logs"
     assert settings.max_batch_size == 500
+
+
+def test_environment_override_from_env_var(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("ZYLAR_ENVIRONMENT", "test")
+    settings = Settings()
+    assert settings.environment == "test"
 
 
 def test_production_rejects_default_signing_key():

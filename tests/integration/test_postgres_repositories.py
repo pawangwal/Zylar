@@ -120,8 +120,9 @@ def make_test_incident(
     mitigation_plan: list[str] | None = None,
     threat_intel: dict[str, Any] | None = None,
     event_refs: list[EventRefData] | None = None,
+    timestamp: datetime | None = None,
 ) -> IncidentCreate:
-    now = datetime.now(UTC)
+    now = timestamp if timestamp is not None else datetime.now(UTC)
     refs = (
         event_refs
         if event_refs is not None
@@ -232,8 +233,9 @@ def test_postgres_incident_update_status(session_factory):
 
 def test_postgres_idempotency_exact_duplicate(session_factory):
     suffix = uuid.uuid4().hex[:8]
-    dto1 = make_test_incident(suffix)
-    dto2 = make_test_incident(suffix)  # identical payload and key
+    fixed_ts = datetime.now(UTC)
+    dto1 = make_test_incident(suffix, timestamp=fixed_ts)
+    dto2 = make_test_incident(suffix, timestamp=fixed_ts)  # identical payload and key
 
     with UnitOfWork(session_factory) as uow:
         res1 = uow.incidents.create_incident(dto1)

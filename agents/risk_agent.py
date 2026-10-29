@@ -31,6 +31,24 @@ def calculate_risk_node(state: AgentState) -> dict[str, Any]:
     if not anomalies or classification == "None":
         return {"risk_score": 0, "risk_category": "Low"}
 
+    idempotency_key = state.get("idempotency_key")
+    if idempotency_key:
+        try:
+            with get_session() as session:
+                from zylar.persistence.repositories import IncidentRepository
+
+                repo = IncidentRepository(session)
+                existing = repo.get_by_idempotency_key(idempotency_key)
+                if existing is not None and existing.attack_classification == classification:
+                    return {
+                        "risk_score": existing.risk_score,
+                        "risk_category": existing.risk_category,
+                        "historical_recurrence": 0,
+                        "asset_criticality": 50,
+                    }
+        except Exception:
+            pass
+
     # Factor 1: Attack Severity (0-100)
     severity_weight = 0
     if classification == "Ransomware":
