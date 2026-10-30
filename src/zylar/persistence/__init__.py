@@ -11,6 +11,8 @@ from zylar.persistence.dtos import (
     EventRefData,
     IncidentCreate,
     PersistIncidentResult,
+    UserDTO,
+    WorkerInstanceDTO,
 )
 from zylar.persistence.exceptions import (
     ConcurrencyError,
@@ -32,11 +34,15 @@ from zylar.persistence.models import (
     IPHistoryModel,
     RiskHistoryModel,
     UserHistoryModel,
+    UserModel,
+    WorkerInstanceModel,
 )
 from zylar.persistence.repositories import (
     CheckpointRepository,
     IncidentRepository,
     OffenderHistoryRepository,
+    UserRepository,
+    WorkerInstanceRepository,
 )
 from zylar.persistence.unit_of_work import UnitOfWork
 
@@ -65,7 +71,13 @@ __all__ = [
     "RiskHistoryModel",
     "StaleLeaseError",
     "UnitOfWork",
+    "UserDTO",
     "UserHistoryModel",
+    "UserModel",
+    "UserRepository",
+    "WorkerInstanceDTO",
+    "WorkerInstanceModel",
+    "WorkerInstanceRepository",
     "dispose_engine",
     "get_database_manager",
     "get_session",

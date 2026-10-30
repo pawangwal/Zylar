@@ -30,6 +30,8 @@ from zylar.persistence.models import (
     IPHistoryModel,
     RiskHistoryModel,
     UserHistoryModel,
+    UserModel,
+    WorkerInstanceModel,
 )
 
 VALID_STATUSES = frozenset(
@@ -641,7 +643,9 @@ class CheckpointRepository:
         checkpoint.last_processed_timestamp = new_timestamp
         checkpoint.last_processed_id = last_id
         checkpoint.batch_sequence = (checkpoint.batch_sequence or 0) + 1
-        checkpoint.events_processed_count = (checkpoint.events_processed_count or 0) + processed_count
+        checkpoint.events_processed_count = (
+            checkpoint.events_processed_count or 0
+        ) + processed_count
         checkpoint.retry_count = 0
         checkpoint.next_retry_at = None
         checkpoint.last_error = None
@@ -856,3 +860,243 @@ class CheckpointRepository:
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=UTC)
         return max(0.0, (now - ts).total_seconds())
+
+
+VALID_USER_ROLES = frozenset({"admin", "analyst", "viewer"})
+
+
+class UserRepository:
+    """Repository managing authoritative user identity records and RBAC state.
+
+    All operations operate on a caller-owned session and participate in the caller's transaction.
+    This repository never commits or closes the session independently.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_by_id(self, user_id: uuid.UUID) -> UserModel | None:
+        """Retrieves a user by primary key UUID."""
+        return self._session.get(UserModel, user_id)
+
+    def get_by_username(self, username: str) -> UserModel | None:
+        """Retrieves a user by unique username (case-sensitive)."""
+        stmt = select(UserModel).where(UserModel.username == username.strip())
+        return self._session.execute(stmt).scalar_one_or_none()
+
+    def create_user(
+        self,
+        username: str,
+        hashed_password: str,
+        role: str = "analyst",
+        disabled: bool = False,
+    ) -> UserModel:
+        """Creates a user identity.
+
+        Validates username, password hash, and allowed roles.
+        Raises ConstraintViolationError on invalid inputs or unique username collision.
+        """
+        clean_username = username.strip() if username else ""
+        if not clean_username:
+            raise ConstraintViolationError("Username cannot be empty or whitespace.")
+
+        clean_hash = hashed_password.strip() if hashed_password else ""
+        if not clean_hash:
+            raise ConstraintViolationError("Hashed password cannot be empty.")
+
+        clean_role = role.strip().lower() if role else "analyst"
+        if clean_role not in VALID_USER_ROLES:
+            raise ConstraintViolationError(
+                f"Invalid role: '{role}'. Must be one of: {sorted(VALID_USER_ROLES)}"
+            )
+
+        user = UserModel(
+            id=uuid.uuid4(),
+            username=clean_username,
+            hashed_password=clean_hash,
+            role=clean_role,
+            disabled=disabled,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        self._session.add(user)
+        try:
+            self._session.flush()
+        except IntegrityError as exc:
+            self._session.rollback()
+            raise ConstraintViolationError(
+                f"User with username '{clean_username}' already exists."
+            ) from exc
+
+        return user
+
+    def update_disabled(self, user_id: uuid.UUID, disabled: bool) -> UserModel:
+        """Enables or disables an active user account."""
+        user = self.get_by_id(user_id)
+        if user is None:
+            raise RecordNotFoundError(f"User with id {user_id} not found.")
+
+        user.disabled = disabled
+        user.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return user
+
+    def update_role(self, user_id: uuid.UUID, new_role: str) -> UserModel:
+        """Updates user RBAC role."""
+        clean_role = new_role.strip().lower() if new_role else ""
+        if clean_role not in VALID_USER_ROLES:
+            raise ConstraintViolationError(
+                f"Invalid role: '{new_role}'. Must be one of: {sorted(VALID_USER_ROLES)}"
+            )
+
+        user = self.get_by_id(user_id)
+        if user is None:
+            raise RecordNotFoundError(f"User with id {user_id} not found.")
+
+        user.role = clean_role
+        user.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return user
+
+    def list_users(
+        self,
+        include_disabled: bool = False,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[UserModel]:
+        """Lists users with pagination."""
+        stmt = select(UserModel).order_by(UserModel.created_at.asc())
+        if not include_disabled:
+            stmt = stmt.where(UserModel.disabled.is_(False))
+        stmt = stmt.limit(limit).offset(offset)
+        return list(self._session.execute(stmt).scalars().all())
+
+
+VALID_WORKER_STATUSES = frozenset({"STARTING", "ACTIVE", "DEGRADED", "STOPPING", "STOPPED"})
+
+
+class WorkerInstanceRepository:
+    """Repository managing worker liveness heartbeats, lifecycle states, and telemetry.
+
+    Heartbeats and cycle telemetry are decoupled from ingestion checkpoint lease fencing.
+    All operations participate in the caller-owned session and transaction.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, worker_instance_id: str) -> WorkerInstanceModel | None:
+        """Retrieves a worker instance by unique identifier."""
+        return self._session.get(WorkerInstanceModel, worker_instance_id.strip())
+
+    def register_or_heartbeat(
+        self,
+        worker_instance_id: str,
+        worker_name: str,
+        hostname: str,
+        status: str = "ACTIVE",
+    ) -> WorkerInstanceModel:
+        """Registers a new worker instance or refreshes heartbeat on an existing instance."""
+        clean_id = worker_instance_id.strip()
+        if not clean_id:
+            raise ConstraintViolationError("worker_instance_id cannot be blank.")
+        clean_name = worker_name.strip()
+        if not clean_name:
+            raise ConstraintViolationError("worker_name cannot be blank.")
+        clean_host = hostname.strip()
+        if not clean_host:
+            raise ConstraintViolationError("hostname cannot be blank.")
+
+        clean_status = status.strip().upper() if status else "ACTIVE"
+        if clean_status not in VALID_WORKER_STATUSES:
+            raise ConstraintViolationError(
+                f"Invalid worker status: '{status}'. Allowed: {sorted(VALID_WORKER_STATUSES)}"
+            )
+
+        now = datetime.now(UTC)
+        worker = self._session.get(WorkerInstanceModel, clean_id)
+        if worker is None:
+            worker = WorkerInstanceModel(
+                worker_instance_id=clean_id,
+                worker_name=clean_name,
+                hostname=clean_host,
+                started_at=now,
+                last_heartbeat_at=now,
+                status=clean_status,
+            )
+            self._session.add(worker)
+        else:
+            worker.worker_name = clean_name
+            worker.hostname = clean_host
+            worker.last_heartbeat_at = now
+            if worker.status != "STOPPED" or clean_status != "STOPPED":
+                worker.status = clean_status
+
+        self._session.flush()
+        return worker
+
+    def record_cycle_success(self, worker_instance_id: str) -> None:
+        """Updates last_successful_cycle_at, refreshes heartbeat, and resets error status."""
+        worker = self.get(worker_instance_id)
+        if worker is None:
+            raise RecordNotFoundError(f"Worker instance '{worker_instance_id}' not found.")
+
+        now = datetime.now(UTC)
+        worker.last_heartbeat_at = now
+        worker.last_successful_cycle_at = now
+        worker.status = "ACTIVE"
+        worker.last_error_code = None
+        self._session.flush()
+
+    def record_cycle_failure(self, worker_instance_id: str, error_code: str) -> None:
+        """Updates last_failed_cycle_at, sets DEGRADED status, and records last_error_code."""
+        worker = self.get(worker_instance_id)
+        if worker is None:
+            raise RecordNotFoundError(f"Worker instance '{worker_instance_id}' not found.")
+
+        now = datetime.now(UTC)
+        worker.last_heartbeat_at = now
+        worker.last_failed_cycle_at = now
+        worker.status = "DEGRADED"
+        worker.last_error_code = error_code[:64] if error_code else "UNKNOWN_ERROR"
+        self._session.flush()
+
+    def record_shutdown(self, worker_instance_id: str) -> None:
+        """Transitions worker status to STOPPED during graceful shutdown."""
+        worker = self.get(worker_instance_id)
+        if worker is not None:
+            worker.last_heartbeat_at = datetime.now(UTC)
+            worker.status = "STOPPED"
+            self._session.flush()
+
+    def get_active_workers(
+        self,
+        worker_name: str | None = None,
+        stale_threshold_seconds: float = 60.0,
+    ) -> list[WorkerInstanceModel]:
+        """Returns worker instances whose heartbeat is fresher than the threshold and not STOPPED."""
+        cutoff = datetime.now(UTC) - timedelta(seconds=stale_threshold_seconds)
+        stmt = (
+            select(WorkerInstanceModel)
+            .where(
+                WorkerInstanceModel.last_heartbeat_at >= cutoff,
+                WorkerInstanceModel.status != "STOPPED",
+            )
+            .order_by(WorkerInstanceModel.last_heartbeat_at.desc())
+        )
+        if worker_name is not None:
+            stmt = stmt.where(WorkerInstanceModel.worker_name == worker_name.strip())
+
+        return list(self._session.execute(stmt).scalars().all())
+
+    def prune_stale_workers(self, older_than_seconds: float = 86400.0) -> int:
+        """Deletes stopped or dead worker records older than the specified retention period."""
+        cutoff = datetime.now(UTC) - timedelta(seconds=older_than_seconds)
+        stmt = select(WorkerInstanceModel).where(WorkerInstanceModel.last_heartbeat_at < cutoff)
+        stale_records = list(self._session.execute(stmt).scalars().all())
+        count = len(stale_records)
+        for r in stale_records:
+            self._session.delete(r)
+        if count > 0:
+            self._session.flush()
+        return count

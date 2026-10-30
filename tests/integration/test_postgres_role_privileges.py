@@ -207,7 +207,6 @@ def test_users_table_column_restrictions_and_reconciler(disposable_roles_test_db
     3. zylar_read CANNOT select from users table, only from users_public_view (no password hashes).
     """
     admin_url = disposable_roles_test_db["admin_url"]
-    mig_url = disposable_roles_test_db["mig_url"]
     app_url = disposable_roles_test_db["app_url"]
     read_url = disposable_roles_test_db["read_url"]
 
@@ -215,27 +214,7 @@ def test_users_table_column_restrictions_and_reconciler(disposable_roles_test_db
     app_pass = disposable_roles_test_db["app_pass"]
     read_pass = disposable_roles_test_db["read_pass"]
 
-    # 1. As zylar_migration, create the users table
-    mig_engine = create_engine(mig_url)
-    with mig_engine.begin() as conn:
-        conn.execute(
-            text(
-                """
-                CREATE TABLE public.users (
-                    id UUID PRIMARY KEY,
-                    username VARCHAR(128) UNIQUE NOT NULL,
-                    hashed_password VARCHAR(255) NOT NULL,
-                    role VARCHAR(32) NOT NULL DEFAULT 'analyst',
-                    disabled BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                )
-                """
-            )
-        )
-    mig_engine.dispose()
-
-    # 2. Re-run 00_init_roles.sql as reconciler
+    # 1. Re-run 00_init_roles.sql as reconciler to demonstrate reconciliation idempotency
     sql_template = SQL_FILE_PATH.read_text(encoding="utf-8")
     prepared_sql = prepare_sql_script(sql_template, mig_pass, app_pass, read_pass)
     admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")

@@ -11,6 +11,8 @@ from zylar.persistence.repositories import (
     CheckpointRepository,
     IncidentRepository,
     OffenderHistoryRepository,
+    UserRepository,
+    WorkerInstanceRepository,
 )
 
 
@@ -29,6 +31,8 @@ class UnitOfWork:
         self.incidents: IncidentRepository | None = None
         self.offenders: OffenderHistoryRepository | None = None
         self.checkpoints: CheckpointRepository | None = None
+        self.users: UserRepository | None = None
+        self.workers: WorkerInstanceRepository | None = None
 
     @property
     def session(self) -> Session:
@@ -45,6 +49,8 @@ class UnitOfWork:
         self.incidents = IncidentRepository(self._session)
         self.offenders = OffenderHistoryRepository(self._session)
         self.checkpoints = CheckpointRepository(self._session)
+        self.users = UserRepository(self._session)
+        self.workers = WorkerInstanceRepository(self._session)
         return self
 
     def commit(self) -> None:

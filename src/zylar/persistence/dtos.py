@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -86,3 +87,30 @@ class PersistIncidentResult:
     incident: IncidentModel
     created: bool
     idempotency_key: str
+
+
+@dataclass(frozen=True)
+class UserDTO:
+    """Read-only user identity DTO."""
+
+    id: uuid.UUID
+    username: str
+    role: str
+    disabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class WorkerInstanceDTO:
+    """Read-only worker instance status and heartbeat DTO."""
+
+    worker_instance_id: str
+    worker_name: str
+    hostname: str
+    started_at: datetime
+    last_heartbeat_at: datetime
+    status: str
+    last_successful_cycle_at: datetime | None = None
+    last_failed_cycle_at: datetime | None = None
+    last_error_code: str | None = None

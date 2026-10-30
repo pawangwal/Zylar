@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -326,4 +327,78 @@ class DeadLetterEventModel(Base):
         CheckConstraint("length(trim(stream_id)) > 0", name="chk_dead_letter_stream_not_blank"),
         CheckConstraint("length(trim(raw_event_hash)) > 0", name="chk_dead_letter_hash_not_blank"),
         Index("ix_dead_letter_stream_quarantine", "stream_id", "quarantined_at"),
+    )
+
+
+class UserModel(Base):
+    """Authoritative user identity and credentials for authentication and RBAC."""
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    username: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="analyst", server_default=text("'analyst'")
+    )
+    disabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("role IN ('admin', 'analyst', 'viewer')", name="chk_users_role"),
+        CheckConstraint("length(trim(username)) > 0", name="chk_users_username_not_blank"),
+        CheckConstraint(
+            "length(trim(hashed_password)) > 0", name="chk_users_hashed_password_not_blank"
+        ),
+    )
+
+
+class WorkerInstanceModel(Base):
+    """Tracks active worker instances, liveness heartbeats, and cycle telemetry."""
+
+    __tablename__ = "worker_instances"
+
+    worker_instance_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    worker_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_successful_cycle_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_failed_cycle_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="STARTING", server_default=text("'STARTING'")
+    )
+    last_error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('STARTING', 'ACTIVE', 'DEGRADED', 'STOPPING', 'STOPPED')",
+            name="chk_worker_status",
+        ),
+        CheckConstraint(
+            "length(trim(worker_instance_id)) > 0", name="chk_worker_instance_id_not_blank"
+        ),
+        CheckConstraint("length(trim(worker_name)) > 0", name="chk_worker_name_not_blank"),
+        Index("ix_worker_instances_name_heartbeat", "worker_name", "last_heartbeat_at"),
+        Index("ix_worker_instances_last_heartbeat", "last_heartbeat_at"),
     )

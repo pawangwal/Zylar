@@ -31,8 +31,8 @@ def test_model_classes_mapped():
     assert DeadLetterEventModel.__tablename__ == "dead_letter_events"
 
 
-def test_metadata_contains_all_eight_tables():
-    """Verifies that Base.metadata registers exactly the eight required PostgreSQL tables."""
+def test_metadata_contains_all_ten_tables():
+    """Verifies that Base.metadata registers exactly the ten required PostgreSQL tables."""
     table_names = set(Base.metadata.tables.keys())
     expected = {
         "incidents",
@@ -43,8 +43,40 @@ def test_metadata_contains_all_eight_tables():
         "audit_logs",
         "ingestion_checkpoints",
         "dead_letter_events",
+        "users",
+        "worker_instances",
     }
     assert table_names == expected
+
+
+def test_users_table_columns_and_constraints():
+    table = Base.metadata.tables["users"]
+    assert "id" in table.columns
+    assert "username" in table.columns
+    assert "hashed_password" in table.columns
+    assert "role" in table.columns
+    assert "disabled" in table.columns
+    assert table.columns["username"].unique is True
+
+    chk_names = {c.name for c in table.constraints if hasattr(c, "name") and c.name}
+    assert "chk_users_role" in chk_names
+    assert "chk_users_username_not_blank" in chk_names
+    assert "chk_users_hashed_password_not_blank" in chk_names
+
+
+def test_worker_instances_table_columns_and_constraints():
+    table = Base.metadata.tables["worker_instances"]
+    assert "worker_instance_id" in table.columns
+    assert "worker_name" in table.columns
+    assert "hostname" in table.columns
+    assert "started_at" in table.columns
+    assert "last_heartbeat_at" in table.columns
+    assert "status" in table.columns
+
+    chk_names = {c.name for c in table.constraints if hasattr(c, "name") and c.name}
+    assert "chk_worker_status" in chk_names
+    assert "chk_worker_instance_id_not_blank" in chk_names
+    assert "chk_worker_name_not_blank" in chk_names
 
 
 def test_incidents_table_columns_and_types():

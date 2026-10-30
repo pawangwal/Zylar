@@ -95,6 +95,8 @@ def test_alembic_migration_lifecycle(disposable_test_db):
         "audit_logs",
         "ingestion_checkpoints",
         "dead_letter_events",
+        "users",
+        "worker_instances",
     }
     assert expected.issubset(tables)
 
@@ -313,6 +315,66 @@ def test_alembic_migration_lifecycle(disposable_test_db):
                         ) VALUES (
                             'ZYLAR-INC-TEST-VALID-2', 'req:test-unique-key-1', NOW(), 'Port Scan',
                             45, 'Medium', 'NEW'
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: users invalid role (chk_users_role)
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO users (
+                            username, hashed_password, role
+                        ) VALUES (
+                            'bad_role_user', 'hash123', 'superuser'
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: users blank username (chk_users_username_not_blank)
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO users (
+                            username, hashed_password, role
+                        ) VALUES (
+                            '   ', 'hash123', 'analyst'
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: worker_instances invalid status (chk_worker_status)
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO worker_instances (
+                            worker_instance_id, worker_name, hostname, status
+                        ) VALUES (
+                            'w-bad-status', 'ingest', 'host1', 'BOGUS_STATUS'
+                        )
+                        """
+                    )
+                )
+
+        # Constraint test: worker_instances blank worker_name (chk_worker_name_not_blank)
+        with pytest.raises((IntegrityError, DBAPIError)):
+            with conn.begin():
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO worker_instances (
+                            worker_instance_id, worker_name, hostname, status
+                        ) VALUES (
+                            'w-blank-name', '   ', 'host1', 'ACTIVE'
                         )
                         """
                     )
