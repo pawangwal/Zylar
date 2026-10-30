@@ -154,7 +154,7 @@ def test_default_elasticsearch_auth_settings(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("ZYLAR_ELASTICSEARCH_PASSWORD", raising=False)
     monkeypatch.delenv("ZYLAR_ELASTICSEARCH_URL", raising=False)
     settings = Settings(_env_file=None)
-    assert settings.elasticsearch_username == "elastic"
+    assert settings.elasticsearch_username is None
     assert settings.elasticsearch_password is None
     assert str(settings.elasticsearch_url) == "http://127.0.0.1:9200/"
     assert settings.redacted_elasticsearch_url == "http://127.0.0.1:9200/"
@@ -214,6 +214,7 @@ def test_production_accepts_valid_elasticsearch_password():
         bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
         database_url=SYNTHETIC_DB_URL,
         elasticsearch_url="https://synthetic.internal:9200",
+        elasticsearch_username="elastic",
         elasticsearch_password="a-very-strong-production-pass",
     )
     assert settings.elasticsearch_password.get_secret_value() == "a-very-strong-production-pass"

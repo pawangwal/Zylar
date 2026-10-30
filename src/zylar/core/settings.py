@@ -61,7 +61,11 @@ class Settings(BaseSettings):
 
     elasticsearch_url: AnyHttpUrl = cast(AnyHttpUrl, "http://127.0.0.1:9200")
     elasticsearch_index: str = Field(default="zylar-logs", min_length=1, max_length=255)
-    elasticsearch_username: str = Field(default="elastic", min_length=1, max_length=128)
+    elasticsearch_username: str | None = Field(
+        default=None,
+        max_length=128,
+        description="Username for Elasticsearch basic authentication.",
+    )
     elasticsearch_password: SecretStr | None = None
     elasticsearch_api_key: SecretStr | None = Field(
         default=None,

@@ -84,8 +84,37 @@ def test_production_rejects_http_scheme():
         )
 
 
-def test_production_rejects_empty_username_with_password():
-    """Production mode must reject password authentication when username is empty or whitespace."""
+def test_production_rejects_omitted_username_with_password():
+    """Production mode must reject password authentication when username is omitted (None)."""
+    with pytest.raises(ValidationError, match="ZYLAR_ELASTICSEARCH_USERNAME must be explicitly specified"):
+        Settings(
+            _env_file=None,
+            environment="production",
+            auth_signing_key=SYNTHETIC_KEY_32,
+            bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
+            database_url=SYNTHETIC_DB_URL,
+            elasticsearch_url=SYNTHETIC_ES_URL,
+            elasticsearch_username=None,
+            elasticsearch_password=SecretStr("valid-production-es-password-1234"),
+        )
+
+
+def test_production_rejects_default_unsupplied_username_with_password():
+    """Production mode must reject password authentication when username parameter is not supplied at all."""
+    with pytest.raises(ValidationError, match="ZYLAR_ELASTICSEARCH_USERNAME must be explicitly specified"):
+        Settings(
+            _env_file=None,
+            environment="production",
+            auth_signing_key=SYNTHETIC_KEY_32,
+            bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
+            database_url=SYNTHETIC_DB_URL,
+            elasticsearch_url=SYNTHETIC_ES_URL,
+            elasticsearch_password=SecretStr("valid-production-es-password-1234"),
+        )
+
+
+def test_production_rejects_empty_or_whitespace_username_with_password():
+    """Production mode must reject password authentication when username is whitespace."""
     with pytest.raises(ValidationError, match="ZYLAR_ELASTICSEARCH_USERNAME must be explicitly specified"):
         Settings(
             _env_file=None,
@@ -144,8 +173,8 @@ def test_production_rejects_disabled_tls_verification():
         )
 
 
-def test_production_rejects_invalid_ca_cert_path(tmp_path: Path):
-    """Production mode must fail closed if a configured CA certificate bundle file does not exist."""
+def test_production_rejects_missing_ca_cert_file(tmp_path: Path):
+    """Production mode must fail closed if a configured CA certificate bundle file does not exist on disk."""
     nonexistent = tmp_path / "missing_ca.crt"
     with pytest.raises(ValidationError, match="CA certificate bundle file does not exist"):
         Settings(
@@ -160,10 +189,10 @@ def test_production_rejects_invalid_ca_cert_path(tmp_path: Path):
         )
 
 
-def test_production_accepts_valid_custom_ca_cert(tmp_path: Path):
-    """Production mode must accept a valid existing CA bundle and propagate it to client kwargs."""
-    ca_file = tmp_path / "valid_ca.crt"
-    ca_file.write_text("-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----\n")
+def test_production_accepts_custom_ca_cert_path_propagation(tmp_path: Path):
+    """Production mode verifies CA bundle path exists and propagates the path to client kwargs."""
+    ca_file = tmp_path / "custom_ca.crt"
+    ca_file.write_text("-----BEGIN CERTIFICATE-----\nTEST_CERT_BUNDLE\n-----END CERTIFICATE-----\n")
     s = Settings(
         _env_file=None,
         environment="production",
@@ -242,10 +271,22 @@ def test_development_backward_compatibility():
     assert str(s.elasticsearch_url) == "http://127.0.0.1:9200/"
     assert s.elasticsearch_password is None
     assert s.elasticsearch_api_key is None
+    assert s.elasticsearch_username is None
     kwargs = s.elasticsearch_client_kwargs
     assert kwargs["hosts"] == ["http://127.0.0.1:9200"]
     assert "basic_auth" not in kwargs
     assert "api_key" not in kwargs
+
+
+def test_development_falls_back_to_elastic_username_when_password_provided():
+    """Development environment defaults username to 'elastic' if password is set but username is omitted."""
+    s = Settings(
+        _env_file=None,
+        environment="development",
+        elasticsearch_password=SecretStr("dev-local-password"),
+    )
+    kwargs = s.elasticsearch_client_kwargs
+    assert kwargs.get("basic_auth") == ("elastic", "dev-local-password")
 
 
 def test_secrets_never_leak_in_redacted_urls_or_errors():
@@ -276,3 +317,4 @@ def test_elasticsearch_client_initialization_compatibility():
             verify_certs=True,
             api_key="valid-api-key-1234",
         )
+
