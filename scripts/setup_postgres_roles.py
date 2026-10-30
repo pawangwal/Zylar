@@ -31,6 +31,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("zylar.setup_roles")
+logger.setLevel(logging.INFO)
 
 SQL_FILE_PATH = Path(__file__).parent / "sql" / "00_init_roles.sql"
 VALID_ENVIRONMENTS = {"development", "testing", "staging", "production"}

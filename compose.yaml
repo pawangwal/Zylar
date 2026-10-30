@@ -1,0 +1,229 @@
+services:
+  postgres:
+    image: postgres:16.8-alpine
+    container_name: zylar-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-zylar_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev_password_123}
+      ZYLAR_MIGRATION_DB_PASSWORD: ${ZYLAR_MIGRATION_DB_PASSWORD:-dev_migration_pass_123}
+      ZYLAR_APP_DB_PASSWORD: ${ZYLAR_APP_DB_PASSWORD:-dev_app_pass_123}
+      ZYLAR_READ_DB_PASSWORD: ${ZYLAR_READ_DB_PASSWORD:-dev_read_pass_123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/sql:/scripts/sql:ro
+      - ./scripts/sql/init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh:ro
+    networks:
+      - zylar-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zylar_app -d zylar_db || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.2
+    container_name: zylar-elasticsearch
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9200:9200"
+    environment:
+      - node.name=zylar-node
+      - cluster.name=zylar-cluster
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - ELASTIC_PASSWORD=${ZYLAR_ELASTICSEARCH_PASSWORD:-elastic_password_123}
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - zylar-backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -k https://localhost:9200/_cluster/health || curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  migration:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: zylar-migration
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      ZYLAR_ENVIRONMENT: ${ZYLAR_ENVIRONMENT:-development}
+      ZYLAR_DATABASE_URL: postgresql+psycopg://zylar_migration:${ZYLAR_MIGRATION_DB_PASSWORD:-dev_migration_pass_123}@postgres:5432/${POSTGRES_DB:-zylar_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - zylar-backend
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: zylar-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ZYLAR_ENVIRONMENT: ${ZYLAR_ENVIRONMENT:-development}
+      ZYLAR_DATABASE_URL: postgresql+psycopg://zylar_app:${ZYLAR_APP_DB_PASSWORD:-dev_app_pass_123}@postgres:5432/${POSTGRES_DB:-zylar_db}
+      ZYLAR_ELASTICSEARCH_URL: ${ZYLAR_ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      ZYLAR_ELASTICSEARCH_USERNAME: ${ZYLAR_ELASTICSEARCH_USERNAME:-elastic}
+      ZYLAR_ELASTICSEARCH_PASSWORD: ${ZYLAR_ELASTICSEARCH_PASSWORD:-elastic_password_123}
+      ZYLAR_ENABLE_INGESTION_SCHEDULER: "false"
+      ZYLAR_JWT_SECRET: ${ZYLAR_JWT_SECRET:-dev_jwt_secret_key_minimum_32_chars_long!}
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - zylar-frontend
+      - zylar-backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: zylar-worker
+    restart: unless-stopped
+    environment:
+      ZYLAR_ENVIRONMENT: ${ZYLAR_ENVIRONMENT:-development}
+      ZYLAR_DATABASE_URL: postgresql+psycopg://zylar_app:${ZYLAR_APP_DB_PASSWORD:-dev_app_pass_123}@postgres:5432/${POSTGRES_DB:-zylar_db}
+      ZYLAR_ELASTICSEARCH_URL: ${ZYLAR_ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      ZYLAR_ELASTICSEARCH_USERNAME: ${ZYLAR_ELASTICSEARCH_USERNAME:-elastic}
+      ZYLAR_ELASTICSEARCH_PASSWORD: ${ZYLAR_ELASTICSEARCH_PASSWORD:-elastic_password_123}
+      ZYLAR_WORKER_NAME: worker-1
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - zylar-backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9102/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: zylar-dashboard
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      ZYLAR_API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - zylar-frontend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8501/_stcore/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: zylar-prometheus
+    profiles:
+      - monitoring
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom_data:/prometheus
+    networks:
+      - zylar-backend
+      - zylar-frontend
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.2
+    container_name: zylar-kibana
+    profiles:
+      - monitoring
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${ZYLAR_ELASTICSEARCH_PASSWORD:-elastic_password_123}
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - zylar-backend
+
+  simulator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: zylar-simulator
+    profiles:
+      - sim
+    command: ["python", "scripts/generate_logs.py"]
+    environment:
+      ZYLAR_ENVIRONMENT: ${ZYLAR_ENVIRONMENT:-development}
+      ZYLAR_ELASTICSEARCH_URL: ${ZYLAR_ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      ZYLAR_ELASTICSEARCH_USERNAME: ${ZYLAR_ELASTICSEARCH_USERNAME:-elastic}
+      ZYLAR_ELASTICSEARCH_PASSWORD: ${ZYLAR_ELASTICSEARCH_PASSWORD:-elastic_password_123}
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - zylar-backend
+
+networks:
+  zylar-frontend:
+    driver: bridge
+  zylar-backend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  es_data:
+    driver: local
+  prom_data:
+    driver: local
+

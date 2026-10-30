@@ -20,15 +20,22 @@ htmlcov/
 coverage.xml
 .ruff_cache/
 .mypy_cache/
+tests/
 
 # Build artifacts
 dist/
 build/
 *.egg-info/
 
-# Local databases and reports
+# Local databases, data directories and reports
 *.db
 *.sqlite
 *.sqlite3
 reports/
 *.log
+elk_setup/data/
+
+# Documentation and IDE configs
+docs/
+.idea/
+.vscode/

@@ -6,6 +6,7 @@ import pytest
 from scripts.setup_postgres_roles import (
     SQL_FILE_PATH,
     get_required_credentials,
+    logger,
     main,
     mask_db_url,
     prepare_sql_script,
@@ -195,7 +196,10 @@ def test_get_required_credentials_production_validation_success(monkeypatch: pyt
 
 def test_dry_run_execution(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):
     """Dry run validates template and configuration without connecting to DB."""
-    caplog.set_level(logging.INFO)
+    logger.disabled = False
+    logger.setLevel(logging.INFO)
+    logger.propagate = True
+    caplog.set_level(logging.INFO, logger="zylar.setup_roles")
     monkeypatch.setenv("ZYLAR_ENVIRONMENT", "development")
     monkeypatch.setenv(
         "ZYLAR_ADMIN_DATABASE_URL", "postgresql://admin:secret@127.0.0.1:5432/zylar_db"
