@@ -94,6 +94,10 @@ class MetricsCollector:
         self._events_deduplicated: int = 0
         self._events_quarantined: int = 0
 
+        self._workflow_events_completed: int = 0
+        self._incidents_persisted: int = 0
+        self._checkpoint_advances: int = 0
+
         self._workflow_counts: dict[str, int] = defaultdict(int)
         self._workflow_durations_sum: dict[str, float] = defaultdict(float)
         self._workflow_histogram_buckets: dict[str, dict[float, int]] = defaultdict(
@@ -132,6 +136,31 @@ class MetricsCollector:
             return
         with self._lock:
             self._events_quarantined += count
+
+    def record_workflow_events_completed(self, count: int = 1) -> None:
+        """Records events successfully processed through the workflow pipeline stage."""
+        if count <= 0:
+            return
+        with self._lock:
+            self._workflow_events_completed += count
+
+    def record_incidents_persisted(self, count: int = 1) -> None:
+        """Records incidents durably committed to the PostgreSQL operational store."""
+        if count <= 0:
+            return
+        with self._lock:
+            self._incidents_persisted += count
+
+    def record_checkpoint_advance(self, count: int = 1) -> None:
+        """Records successful stream checkpoint watermark advances committed to PostgreSQL."""
+        if count <= 0:
+            return
+        with self._lock:
+            self._checkpoint_advances += count
+
+    def format_prometheus_exposition(self) -> str:
+        """Exposes accumulated metrics formatted per Prometheus text exposition specification (v0.0.4)."""
+        return self.get_prometheus_text()
 
     # Backward compatibility aliases
     def record_event_ingested(self, count: int = 1) -> None:
@@ -183,6 +212,9 @@ class MetricsCollector:
             self._events_processed = 0
             self._events_deduplicated = 0
             self._events_quarantined = 0
+            self._workflow_events_completed = 0
+            self._incidents_persisted = 0
+            self._checkpoint_advances = 0
             self._workflow_counts.clear()
             self._workflow_durations_sum.clear()
             self._workflow_histogram_buckets.clear()
@@ -204,6 +236,15 @@ class MetricsCollector:
                 "# HELP zylar_events_quarantined_total Total number of poison events quarantined in dead-letter store.",
                 "# TYPE zylar_events_quarantined_total counter",
                 f"zylar_events_quarantined_total {self._events_quarantined}",
+                "# HELP zylar_workflow_events_completed_total Total number of workflow events completed by API/pipeline.",
+                "# TYPE zylar_workflow_events_completed_total counter",
+                f"zylar_workflow_events_completed_total {self._workflow_events_completed}",
+                "# HELP zylar_incidents_persisted_total Total number of incidents durably committed to PostgreSQL.",
+                "# TYPE zylar_incidents_persisted_total counter",
+                f"zylar_incidents_persisted_total {self._incidents_persisted}",
+                "# HELP zylar_ingestion_checkpoint_advances_total Total number of successful checkpoint advances committed to PostgreSQL.",
+                "# TYPE zylar_ingestion_checkpoint_advances_total counter",
+                f"zylar_ingestion_checkpoint_advances_total {self._checkpoint_advances}",
                 "# HELP zylar_ingested_events_total Deprecated compatibility alias for events received.",
                 "# TYPE zylar_ingested_events_total counter",
                 f"zylar_ingested_events_total {self._events_received}",

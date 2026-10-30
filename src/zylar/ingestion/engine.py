@@ -353,6 +353,7 @@ class CheckpointedIngestionWorker:
                 uow.checkpoints.release_lease(self.stream_id, self.worker_id, lease_generation)
                 uow.commit()
 
+            collector.record_checkpoint_advance()
             if dead_letters:
                 collector.record_events_quarantined(len(dead_letters))
 
@@ -470,6 +471,9 @@ class CheckpointedIngestionWorker:
                 uow.commit()
 
             collector.record_events_processed(len(valid_records))
+            collector.record_checkpoint_advance()
+            if incident_dto is not None:
+                collector.record_incidents_persisted(1)
             if dead_letters:
                 collector.record_events_quarantined(len(dead_letters))
 

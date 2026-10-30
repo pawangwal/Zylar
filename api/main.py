@@ -524,6 +524,9 @@ async def run_workflow(
         duration_sec = (datetime.now(UTC) - t0).total_seconds()
         collector.record_workflow_execution("success", duration_sec)
         collector.record_events_processed(len(raw_logs))
+        collector.record_workflow_events_completed(len(raw_logs))
+        if final_state.get("incident_id"):
+            collector.record_incidents_persisted(1)
 
         rule_matches = final_state.get("rule_matches", [])
         if isinstance(rule_matches, list):

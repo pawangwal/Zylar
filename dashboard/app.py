@@ -116,6 +116,9 @@ def parse_prometheus_metrics(metrics_text: str | None) -> dict[str, Any]:
             "events_processed": None,
             "events_deduplicated": None,
             "events_quarantined": None,
+            "workflow_events_completed": None,
+            "incidents_persisted": None,
+            "checkpoint_advances": None,
             "ingested_total": None,
             "deduplicated_total": None,
             "workflows": {},
@@ -128,6 +131,9 @@ def parse_prometheus_metrics(metrics_text: str | None) -> dict[str, Any]:
         "events_processed": 0,
         "events_deduplicated": 0,
         "events_quarantined": 0,
+        "workflow_events_completed": 0,
+        "incidents_persisted": 0,
+        "checkpoint_advances": 0,
         "ingested_total": 0,
         "deduplicated_total": 0,
         "workflows": {},
@@ -159,6 +165,12 @@ def parse_prometheus_metrics(metrics_text: str | None) -> dict[str, Any]:
             metrics["deduplicated_total"] = val
         elif key == "zylar_events_quarantined_total":
             metrics["events_quarantined"] = val
+        elif key == "zylar_workflow_events_completed_total":
+            metrics["workflow_events_completed"] = val
+        elif key == "zylar_incidents_persisted_total":
+            metrics["incidents_persisted"] = val
+        elif key == "zylar_ingestion_checkpoint_advances_total":
+            metrics["checkpoint_advances"] = val
         elif key.startswith('zylar_workflow_executions_total{status="'):
             st_name = key.split('status="')[1].split('"}')[0]
             metrics["workflows"][st_name] = val
@@ -319,6 +331,34 @@ def main() -> None:
     sched_icon = "✔️" if scheduler_running else ("⚠️" if scheduler_status_str == "stopped" else "❌")
     st.sidebar.markdown(f"{sched_icon} **Autonomous Scheduler**: {scheduler_status_str.capitalize()}")
 
+    # Ingestion Worker Status (queried from PostgreSQL worker_instances via /api/ingestion/status)
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**Ingestion Worker Status**")
+    active_workers = ingestion_data.get("active_workers", [])
+    if active_workers:
+        for w in active_workers:
+            w_name = w.get("worker_name", "worker")
+            w_status = str(w.get("status", "UNKNOWN")).upper()
+            w_lag = w.get("heartbeat_lag_seconds")
+            w_host = w.get("hostname", "unknown")
+            is_healthy = w_status == "ACTIVE" and (w_lag is None or w_lag <= 30.0)
+            w_icon = "✔️" if is_healthy else "⚠️"
+            st.sidebar.markdown(f"{w_icon} **{w_name}** (`{w_status}`)")
+            st.sidebar.caption(
+                f"Host: `{w_host}` | Lag: `{f'{w_lag:.1f}s' if w_lag is not None else 'N/A'}`"
+            )
+            if w_lag is not None and w_lag > 30.0:
+                st.sidebar.warning(
+                    f"⚠️ Worker `{w_name}` heartbeat lag ({w_lag:.1f}s) exceeds 30s threshold!"
+                )
+    else:
+        st.sidebar.caption("No dedicated workers registered in PostgreSQL.")
+
+    lease_owner = ingestion_data.get("lease_owner")
+    lease_gen = ingestion_data.get("lease_generation")
+    if lease_owner:
+        st.sidebar.caption(f"Lease Owner: `{lease_owner}` (Gen {lease_gen})")
+
     # Fetch Prometheus Metrics
     prom_raw = fetch_metrics(api_url, timeout=settings.request_timeout_seconds)
     prom_metrics = parse_prometheus_metrics(prom_raw)
@@ -423,6 +463,17 @@ def main() -> None:
             col_pm2.metric("Events Processed (Durable)", prom_metrics["events_processed"])
             col_pm3.metric("Events Deduplicated", prom_metrics["events_deduplicated"])
             col_pm4.metric("Events Quarantined", prom_metrics["events_quarantined"])
+
+            col_pm5, col_pm6, col_pm7 = st.columns(3)
+            col_pm5.metric(
+                "Workflow Events Completed", prom_metrics.get("workflow_events_completed", 0)
+            )
+            col_pm6.metric(
+                "Incidents Persisted (PostgreSQL)", prom_metrics.get("incidents_persisted", 0)
+            )
+            col_pm7.metric(
+                "Checkpoint Advances (PostgreSQL)", prom_metrics.get("checkpoint_advances", 0)
+            )
 
         st.subheader("Deterministic SOC Rules Triggered")
         rules_map = prom_metrics.get("rules_fired", {})
