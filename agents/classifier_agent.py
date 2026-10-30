@@ -78,7 +78,7 @@ def deterministic_fallback_classifier(anomalies: list[dict[str, Any]]) -> Attack
 
 
 def classify_attack_node(state: AgentState) -> dict[str, Any]:
-    """Classifies attack type using local Ollama model with Pydantic validation and deterministic fallbacks.
+    """Classifies attack type using deterministic detection rules, local Ollama model, or heuristic fallback.
 
     Completely offline: never invokes external AI providers or network APIs.
     """
@@ -87,6 +87,12 @@ def classify_attack_node(state: AgentState) -> dict[str, Any]:
 
     if not anomalies:
         return {"attack_classification": AttackCategory.NONE.value}
+
+    # 1. Prioritize deterministic detection rule classification if verified match occurred
+    detection_res = state.get("detection_result") or {}
+    det_classification = detection_res.get("classification")
+    if det_classification and det_classification not in ("None", "Unknown"):
+        return {"attack_classification": det_classification}
 
     settings = get_settings()
 

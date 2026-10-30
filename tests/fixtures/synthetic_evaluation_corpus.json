@@ -1,6 +1,6 @@
 {
   "corpus_version": "2026.10.1",
-  "generated_at": "2026-10-29T16:25:31.697223+00:00",
+  "generated_at": "2026-10-25T12:00:00+00:00",
   "total_scenarios": 150,
   "breakdown": {
     "benign": 100,
@@ -794,37 +794,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Normal web application navigation by emma",
+      "description": "Internal microservice RPC calls from 192.168.1.10",
       "events": [
         {
           "event_id": "scenario-benign-021-ev-0",
           "timestamp": "2026-10-25T12:20:00+00:00",
-          "event_type": "web_access",
+          "event_type": "api_call",
           "source_ip": "192.168.1.10",
-          "user": "emma",
+          "user": "service-emma",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_0 HTTP/1.1 200 OK"
+          "destination_port": 5432,
+          "details": "Internal query customer_record_0"
         },
         {
           "event_id": "scenario-benign-021-ev-1",
-          "timestamp": "2026-10-25T12:20:05+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:20:02+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.10",
-          "user": "emma",
+          "user": "service-emma",
           "status": "success",
-          "destination_port": 80,
-          "details": "GET /app/dashboard/view_1 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_1"
         },
         {
           "event_id": "scenario-benign-021-ev-2",
-          "timestamp": "2026-10-25T12:20:10+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:20:04+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.10",
-          "user": "emma",
+          "user": "service-emma",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_2 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_2"
+        },
+        {
+          "event_id": "scenario-benign-021-ev-3",
+          "timestamp": "2026-10-25T12:20:06+00:00",
+          "event_type": "api_call",
+          "source_ip": "192.168.1.10",
+          "user": "service-emma",
+          "status": "success",
+          "destination_port": 8080,
+          "details": "Internal query customer_record_3"
         }
       ]
     },
@@ -833,37 +843,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Normal web application navigation by frank",
+      "description": "Internal microservice RPC calls from 192.168.1.11",
       "events": [
         {
           "event_id": "scenario-benign-022-ev-0",
           "timestamp": "2026-10-25T12:21:00+00:00",
-          "event_type": "web_access",
+          "event_type": "api_call",
           "source_ip": "192.168.1.11",
-          "user": "frank",
+          "user": "service-frank",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_0 HTTP/1.1 200 OK"
+          "destination_port": 5432,
+          "details": "Internal query customer_record_0"
         },
         {
           "event_id": "scenario-benign-022-ev-1",
-          "timestamp": "2026-10-25T12:21:05+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:21:02+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.11",
-          "user": "frank",
+          "user": "service-frank",
           "status": "success",
-          "destination_port": 80,
-          "details": "GET /app/dashboard/view_1 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_1"
         },
         {
           "event_id": "scenario-benign-022-ev-2",
-          "timestamp": "2026-10-25T12:21:10+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:21:04+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.11",
-          "user": "frank",
+          "user": "service-frank",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_2 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_2"
+        },
+        {
+          "event_id": "scenario-benign-022-ev-3",
+          "timestamp": "2026-10-25T12:21:06+00:00",
+          "event_type": "api_call",
+          "source_ip": "192.168.1.11",
+          "user": "service-frank",
+          "status": "success",
+          "destination_port": 8080,
+          "details": "Internal query customer_record_3"
         }
       ]
     },
@@ -872,37 +892,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Normal web application navigation by grace",
+      "description": "Internal microservice RPC calls from 192.168.1.12",
       "events": [
         {
           "event_id": "scenario-benign-023-ev-0",
           "timestamp": "2026-10-25T12:22:00+00:00",
-          "event_type": "web_access",
+          "event_type": "api_call",
           "source_ip": "192.168.1.12",
-          "user": "grace",
+          "user": "service-grace",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_0 HTTP/1.1 200 OK"
+          "destination_port": 5432,
+          "details": "Internal query customer_record_0"
         },
         {
           "event_id": "scenario-benign-023-ev-1",
-          "timestamp": "2026-10-25T12:22:05+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:22:02+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.12",
-          "user": "grace",
+          "user": "service-grace",
           "status": "success",
-          "destination_port": 80,
-          "details": "GET /app/dashboard/view_1 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_1"
         },
         {
           "event_id": "scenario-benign-023-ev-2",
-          "timestamp": "2026-10-25T12:22:10+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:22:04+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.12",
-          "user": "grace",
+          "user": "service-grace",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_2 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_2"
+        },
+        {
+          "event_id": "scenario-benign-023-ev-3",
+          "timestamp": "2026-10-25T12:22:06+00:00",
+          "event_type": "api_call",
+          "source_ip": "192.168.1.12",
+          "user": "service-grace",
+          "status": "success",
+          "destination_port": 8080,
+          "details": "Internal query customer_record_3"
         }
       ]
     },
@@ -911,37 +941,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Normal web application navigation by heidi",
+      "description": "Internal microservice RPC calls from 192.168.1.13",
       "events": [
         {
           "event_id": "scenario-benign-024-ev-0",
           "timestamp": "2026-10-25T12:23:00+00:00",
-          "event_type": "web_access",
+          "event_type": "api_call",
           "source_ip": "192.168.1.13",
-          "user": "heidi",
+          "user": "service-heidi",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_0 HTTP/1.1 200 OK"
+          "destination_port": 5432,
+          "details": "Internal query customer_record_0"
         },
         {
           "event_id": "scenario-benign-024-ev-1",
-          "timestamp": "2026-10-25T12:23:05+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:23:02+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.13",
-          "user": "heidi",
+          "user": "service-heidi",
           "status": "success",
-          "destination_port": 80,
-          "details": "GET /app/dashboard/view_1 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_1"
         },
         {
           "event_id": "scenario-benign-024-ev-2",
-          "timestamp": "2026-10-25T12:23:10+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:23:04+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.13",
-          "user": "heidi",
+          "user": "service-heidi",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_2 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_2"
+        },
+        {
+          "event_id": "scenario-benign-024-ev-3",
+          "timestamp": "2026-10-25T12:23:06+00:00",
+          "event_type": "api_call",
+          "source_ip": "192.168.1.13",
+          "user": "service-heidi",
+          "status": "success",
+          "destination_port": 8080,
+          "details": "Internal query customer_record_3"
         }
       ]
     },
@@ -950,37 +990,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Normal web application navigation by alice",
+      "description": "Internal microservice RPC calls from 192.168.1.14",
       "events": [
         {
           "event_id": "scenario-benign-025-ev-0",
           "timestamp": "2026-10-25T12:24:00+00:00",
-          "event_type": "web_access",
+          "event_type": "api_call",
           "source_ip": "192.168.1.14",
-          "user": "alice",
+          "user": "service-alice",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_0 HTTP/1.1 200 OK"
+          "destination_port": 5432,
+          "details": "Internal query customer_record_0"
         },
         {
           "event_id": "scenario-benign-025-ev-1",
-          "timestamp": "2026-10-25T12:24:05+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:24:02+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.14",
-          "user": "alice",
+          "user": "service-alice",
           "status": "success",
-          "destination_port": 80,
-          "details": "GET /app/dashboard/view_1 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_1"
         },
         {
           "event_id": "scenario-benign-025-ev-2",
-          "timestamp": "2026-10-25T12:24:10+00:00",
-          "event_type": "web_access",
+          "timestamp": "2026-10-25T12:24:04+00:00",
+          "event_type": "api_call",
           "source_ip": "192.168.1.14",
-          "user": "alice",
+          "user": "service-alice",
           "status": "success",
-          "destination_port": 443,
-          "details": "GET /app/dashboard/view_2 HTTP/1.1 200 OK"
+          "destination_port": 8080,
+          "details": "Internal query customer_record_2"
+        },
+        {
+          "event_id": "scenario-benign-025-ev-3",
+          "timestamp": "2026-10-25T12:24:06+00:00",
+          "event_type": "api_call",
+          "source_ip": "192.168.1.14",
+          "user": "service-alice",
+          "status": "success",
+          "destination_port": 8080,
+          "details": "Internal query customer_record_3"
         }
       ]
     },
@@ -1724,47 +1774,37 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.10",
+      "description": "User alice mistyping password (2 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-041-ev-0",
           "timestamp": "2026-10-25T12:40:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.10",
-          "user": "service-alice",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for alice"
         },
         {
           "event_id": "scenario-benign-041-ev-1",
-          "timestamp": "2026-10-25T12:40:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:40:10+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.10",
-          "user": "service-alice",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 2 for alice"
         },
         {
           "event_id": "scenario-benign-041-ev-2",
-          "timestamp": "2026-10-25T12:40:04+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:40:25+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.10",
-          "user": "service-alice",
+          "user": "alice",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
-        },
-        {
-          "event_id": "scenario-benign-041-ev-3",
-          "timestamp": "2026-10-25T12:40:06+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.10",
-          "user": "service-alice",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for alice"
         }
       ]
     },
@@ -1773,47 +1813,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.11",
+      "description": "User bob mistyping password (3 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-042-ev-0",
           "timestamp": "2026-10-25T12:41:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.11",
-          "user": "service-bob",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for bob"
         },
         {
           "event_id": "scenario-benign-042-ev-1",
-          "timestamp": "2026-10-25T12:41:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:41:10+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.11",
-          "user": "service-bob",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 2 for bob"
         },
         {
           "event_id": "scenario-benign-042-ev-2",
-          "timestamp": "2026-10-25T12:41:04+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:41:20+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.11",
-          "user": "service-bob",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 3 for bob"
         },
         {
           "event_id": "scenario-benign-042-ev-3",
-          "timestamp": "2026-10-25T12:41:06+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:41:35+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.11",
-          "user": "service-bob",
+          "user": "bob",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for bob"
         }
       ]
     },
@@ -1822,47 +1862,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.12",
+      "description": "User charlie mistyping password (1 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-043-ev-0",
           "timestamp": "2026-10-25T12:42:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.12",
-          "user": "service-charlie",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "charlie",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for charlie"
         },
         {
           "event_id": "scenario-benign-043-ev-1",
-          "timestamp": "2026-10-25T12:42:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:42:15+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.12",
-          "user": "service-charlie",
+          "user": "charlie",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
-        },
-        {
-          "event_id": "scenario-benign-043-ev-2",
-          "timestamp": "2026-10-25T12:42:04+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.12",
-          "user": "service-charlie",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
-        },
-        {
-          "event_id": "scenario-benign-043-ev-3",
-          "timestamp": "2026-10-25T12:42:06+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.12",
-          "user": "service-charlie",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for charlie"
         }
       ]
     },
@@ -1871,47 +1891,37 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.13",
+      "description": "User david mistyping password (2 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-044-ev-0",
           "timestamp": "2026-10-25T12:43:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.13",
-          "user": "service-david",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "david",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for david"
         },
         {
           "event_id": "scenario-benign-044-ev-1",
-          "timestamp": "2026-10-25T12:43:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:43:10+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.13",
-          "user": "service-david",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
+          "user": "david",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 2 for david"
         },
         {
           "event_id": "scenario-benign-044-ev-2",
-          "timestamp": "2026-10-25T12:43:04+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:43:25+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.13",
-          "user": "service-david",
+          "user": "david",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
-        },
-        {
-          "event_id": "scenario-benign-044-ev-3",
-          "timestamp": "2026-10-25T12:43:06+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.13",
-          "user": "service-david",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for david"
         }
       ]
     },
@@ -1920,47 +1930,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.14",
+      "description": "User emma mistyping password (3 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-045-ev-0",
           "timestamp": "2026-10-25T12:44:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.14",
-          "user": "service-emma",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "emma",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for emma"
         },
         {
           "event_id": "scenario-benign-045-ev-1",
-          "timestamp": "2026-10-25T12:44:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:44:10+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.14",
-          "user": "service-emma",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
+          "user": "emma",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 2 for emma"
         },
         {
           "event_id": "scenario-benign-045-ev-2",
-          "timestamp": "2026-10-25T12:44:04+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:44:20+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.14",
-          "user": "service-emma",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
+          "user": "emma",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 3 for emma"
         },
         {
           "event_id": "scenario-benign-045-ev-3",
-          "timestamp": "2026-10-25T12:44:06+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:44:35+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.14",
-          "user": "service-emma",
+          "user": "emma",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for emma"
         }
       ]
     },
@@ -1969,47 +1979,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.15",
+      "description": "User frank mistyping password (1 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-046-ev-0",
           "timestamp": "2026-10-25T12:45:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.15",
-          "user": "service-frank",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "frank",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for frank"
         },
         {
           "event_id": "scenario-benign-046-ev-1",
-          "timestamp": "2026-10-25T12:45:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:45:15+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.15",
-          "user": "service-frank",
+          "user": "frank",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
-        },
-        {
-          "event_id": "scenario-benign-046-ev-2",
-          "timestamp": "2026-10-25T12:45:04+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.15",
-          "user": "service-frank",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
-        },
-        {
-          "event_id": "scenario-benign-046-ev-3",
-          "timestamp": "2026-10-25T12:45:06+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.15",
-          "user": "service-frank",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for frank"
         }
       ]
     },
@@ -2018,47 +2008,37 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.16",
+      "description": "User grace mistyping password (2 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-047-ev-0",
           "timestamp": "2026-10-25T12:46:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.16",
-          "user": "service-grace",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "grace",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for grace"
         },
         {
           "event_id": "scenario-benign-047-ev-1",
-          "timestamp": "2026-10-25T12:46:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:46:10+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.16",
-          "user": "service-grace",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
+          "user": "grace",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 2 for grace"
         },
         {
           "event_id": "scenario-benign-047-ev-2",
-          "timestamp": "2026-10-25T12:46:04+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:46:25+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.16",
-          "user": "service-grace",
+          "user": "grace",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
-        },
-        {
-          "event_id": "scenario-benign-047-ev-3",
-          "timestamp": "2026-10-25T12:46:06+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.16",
-          "user": "service-grace",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for grace"
         }
       ]
     },
@@ -2067,47 +2047,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.17",
+      "description": "User heidi mistyping password (3 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-048-ev-0",
           "timestamp": "2026-10-25T12:47:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.17",
-          "user": "service-heidi",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for heidi"
         },
         {
           "event_id": "scenario-benign-048-ev-1",
-          "timestamp": "2026-10-25T12:47:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:47:10+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.17",
-          "user": "service-heidi",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 2 for heidi"
         },
         {
           "event_id": "scenario-benign-048-ev-2",
-          "timestamp": "2026-10-25T12:47:04+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:47:20+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.17",
-          "user": "service-heidi",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 3 for heidi"
         },
         {
           "event_id": "scenario-benign-048-ev-3",
-          "timestamp": "2026-10-25T12:47:06+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:47:35+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.17",
-          "user": "service-heidi",
+          "user": "heidi",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for heidi"
         }
       ]
     },
@@ -2116,47 +2096,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.18",
+      "description": "User alice mistyping password (1 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-049-ev-0",
           "timestamp": "2026-10-25T12:48:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.18",
-          "user": "service-alice",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for alice"
         },
         {
           "event_id": "scenario-benign-049-ev-1",
-          "timestamp": "2026-10-25T12:48:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:48:15+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.18",
-          "user": "service-alice",
+          "user": "alice",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
-        },
-        {
-          "event_id": "scenario-benign-049-ev-2",
-          "timestamp": "2026-10-25T12:48:04+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.18",
-          "user": "service-alice",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
-        },
-        {
-          "event_id": "scenario-benign-049-ev-3",
-          "timestamp": "2026-10-25T12:48:06+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.18",
-          "user": "service-alice",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for alice"
         }
       ]
     },
@@ -2165,47 +2125,37 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Internal microservice RPC calls from 192.168.1.19",
+      "description": "User bob mistyping password (2 failed attempts, below brute force threshold)",
       "events": [
         {
           "event_id": "scenario-benign-050-ev-0",
           "timestamp": "2026-10-25T12:49:00+00:00",
-          "event_type": "api_call",
+          "event_type": "authentication",
           "source_ip": "192.168.1.19",
-          "user": "service-bob",
-          "status": "success",
-          "destination_port": 5432,
-          "details": "Internal query customer_record_0"
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 1 for bob"
         },
         {
           "event_id": "scenario-benign-050-ev-1",
-          "timestamp": "2026-10-25T12:49:02+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:49:10+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.19",
-          "user": "service-bob",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_1"
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Authentication failure attempt 2 for bob"
         },
         {
           "event_id": "scenario-benign-050-ev-2",
-          "timestamp": "2026-10-25T12:49:04+00:00",
-          "event_type": "api_call",
+          "timestamp": "2026-10-25T12:49:25+00:00",
+          "event_type": "authentication",
           "source_ip": "192.168.1.19",
-          "user": "service-bob",
+          "user": "bob",
           "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_2"
-        },
-        {
-          "event_id": "scenario-benign-050-ev-3",
-          "timestamp": "2026-10-25T12:49:06+00:00",
-          "event_type": "api_call",
-          "source_ip": "192.168.1.19",
-          "user": "service-bob",
-          "status": "success",
-          "destination_port": 8080,
-          "details": "Internal query customer_record_3"
+          "destination_port": 22,
+          "details": "Authentication success for bob"
         }
       ]
     },
@@ -2409,7 +2359,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User heidi mistyping password (2 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for heidi: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-056-ev-0",
@@ -2419,27 +2369,37 @@
           "user": "heidi",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for heidi"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-056-ev-1",
+          "timestamp": "2026-10-25T12:55:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.25",
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-056-ev-2",
           "timestamp": "2026-10-25T12:55:10+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.25",
           "user": "heidi",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 2 for heidi"
+          "details": "Failed authentication attempt 3 of 4"
         },
         {
-          "event_id": "scenario-benign-056-ev-2",
-          "timestamp": "2026-10-25T12:55:25+00:00",
+          "event_id": "scenario-benign-056-ev-3",
+          "timestamp": "2026-10-25T12:55:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.25",
           "user": "heidi",
-          "status": "success",
+          "status": "failed",
           "destination_port": 22,
-          "details": "Authentication success for heidi"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2448,7 +2408,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User alice mistyping password (3 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for alice: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-057-ev-0",
@@ -2458,37 +2418,37 @@
           "user": "alice",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for alice"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-057-ev-1",
+          "timestamp": "2026-10-25T12:56:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.26",
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-057-ev-2",
           "timestamp": "2026-10-25T12:56:10+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.26",
           "user": "alice",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 2 for alice"
+          "details": "Failed authentication attempt 3 of 4"
         },
         {
-          "event_id": "scenario-benign-057-ev-2",
-          "timestamp": "2026-10-25T12:56:20+00:00",
+          "event_id": "scenario-benign-057-ev-3",
+          "timestamp": "2026-10-25T12:56:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.26",
           "user": "alice",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 3 for alice"
-        },
-        {
-          "event_id": "scenario-benign-057-ev-3",
-          "timestamp": "2026-10-25T12:56:35+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.26",
-          "user": "alice",
-          "status": "success",
-          "destination_port": 22,
-          "details": "Authentication success for alice"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2497,7 +2457,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User bob mistyping password (1 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for bob: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-058-ev-0",
@@ -2507,17 +2467,37 @@
           "user": "bob",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for bob"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-058-ev-1",
+          "timestamp": "2026-10-25T12:57:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.27",
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-058-ev-2",
+          "timestamp": "2026-10-25T12:57:10+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.27",
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 3 of 4"
+        },
+        {
+          "event_id": "scenario-benign-058-ev-3",
           "timestamp": "2026-10-25T12:57:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.27",
           "user": "bob",
-          "status": "success",
+          "status": "failed",
           "destination_port": 22,
-          "details": "Authentication success for bob"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2526,7 +2506,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User charlie mistyping password (2 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for charlie: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-059-ev-0",
@@ -2536,27 +2516,37 @@
           "user": "charlie",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for charlie"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-059-ev-1",
+          "timestamp": "2026-10-25T12:58:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.28",
+          "user": "charlie",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-059-ev-2",
           "timestamp": "2026-10-25T12:58:10+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.28",
           "user": "charlie",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 2 for charlie"
+          "details": "Failed authentication attempt 3 of 4"
         },
         {
-          "event_id": "scenario-benign-059-ev-2",
-          "timestamp": "2026-10-25T12:58:25+00:00",
+          "event_id": "scenario-benign-059-ev-3",
+          "timestamp": "2026-10-25T12:58:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.28",
           "user": "charlie",
-          "status": "success",
+          "status": "failed",
           "destination_port": 22,
-          "details": "Authentication success for charlie"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2565,7 +2555,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User david mistyping password (3 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for david: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-060-ev-0",
@@ -2575,37 +2565,37 @@
           "user": "david",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for david"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-060-ev-1",
+          "timestamp": "2026-10-25T12:59:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.29",
+          "user": "david",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-060-ev-2",
           "timestamp": "2026-10-25T12:59:10+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.29",
           "user": "david",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 2 for david"
+          "details": "Failed authentication attempt 3 of 4"
         },
         {
-          "event_id": "scenario-benign-060-ev-2",
-          "timestamp": "2026-10-25T12:59:20+00:00",
+          "event_id": "scenario-benign-060-ev-3",
+          "timestamp": "2026-10-25T12:59:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.29",
           "user": "david",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 3 for david"
-        },
-        {
-          "event_id": "scenario-benign-060-ev-3",
-          "timestamp": "2026-10-25T12:59:35+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.29",
-          "user": "david",
-          "status": "success",
-          "destination_port": 22,
-          "details": "Authentication success for david"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2614,7 +2604,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User emma mistyping password (1 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for emma: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-061-ev-0",
@@ -2624,17 +2614,37 @@
           "user": "emma",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for emma"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-061-ev-1",
+          "timestamp": "2026-10-25T13:00:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.10",
+          "user": "emma",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-061-ev-2",
+          "timestamp": "2026-10-25T13:00:10+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.10",
+          "user": "emma",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 3 of 4"
+        },
+        {
+          "event_id": "scenario-benign-061-ev-3",
           "timestamp": "2026-10-25T13:00:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.10",
           "user": "emma",
-          "status": "success",
+          "status": "failed",
           "destination_port": 22,
-          "details": "Authentication success for emma"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2643,7 +2653,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User frank mistyping password (2 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for frank: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-062-ev-0",
@@ -2653,27 +2663,37 @@
           "user": "frank",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for frank"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-062-ev-1",
+          "timestamp": "2026-10-25T13:01:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.11",
+          "user": "frank",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-062-ev-2",
           "timestamp": "2026-10-25T13:01:10+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.11",
           "user": "frank",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 2 for frank"
+          "details": "Failed authentication attempt 3 of 4"
         },
         {
-          "event_id": "scenario-benign-062-ev-2",
-          "timestamp": "2026-10-25T13:01:25+00:00",
+          "event_id": "scenario-benign-062-ev-3",
+          "timestamp": "2026-10-25T13:01:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.11",
           "user": "frank",
-          "status": "success",
+          "status": "failed",
           "destination_port": 22,
-          "details": "Authentication success for frank"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2682,7 +2702,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User grace mistyping password (3 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for grace: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-063-ev-0",
@@ -2692,37 +2712,37 @@
           "user": "grace",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for grace"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-063-ev-1",
+          "timestamp": "2026-10-25T13:02:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.12",
+          "user": "grace",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-063-ev-2",
           "timestamp": "2026-10-25T13:02:10+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.12",
           "user": "grace",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 2 for grace"
+          "details": "Failed authentication attempt 3 of 4"
         },
         {
-          "event_id": "scenario-benign-063-ev-2",
-          "timestamp": "2026-10-25T13:02:20+00:00",
+          "event_id": "scenario-benign-063-ev-3",
+          "timestamp": "2026-10-25T13:02:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.12",
           "user": "grace",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 3 for grace"
-        },
-        {
-          "event_id": "scenario-benign-063-ev-3",
-          "timestamp": "2026-10-25T13:02:35+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.12",
-          "user": "grace",
-          "status": "success",
-          "destination_port": 22,
-          "details": "Authentication success for grace"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2731,7 +2751,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User heidi mistyping password (1 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for heidi: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-064-ev-0",
@@ -2741,17 +2761,37 @@
           "user": "heidi",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for heidi"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-064-ev-1",
+          "timestamp": "2026-10-25T13:03:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.13",
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-064-ev-2",
+          "timestamp": "2026-10-25T13:03:10+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.13",
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 3 of 4"
+        },
+        {
+          "event_id": "scenario-benign-064-ev-3",
           "timestamp": "2026-10-25T13:03:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.13",
           "user": "heidi",
-          "status": "success",
+          "status": "failed",
           "destination_port": 22,
-          "details": "Authentication success for heidi"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2760,7 +2800,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User alice mistyping password (2 failed attempts, below brute force threshold)",
+      "description": "Borderline authentication failure for alice: exactly 4 failures (boundary test, threshold is 5)",
       "events": [
         {
           "event_id": "scenario-benign-065-ev-0",
@@ -2770,27 +2810,37 @@
           "user": "alice",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 1 for alice"
+          "details": "Failed authentication attempt 1 of 4"
         },
         {
           "event_id": "scenario-benign-065-ev-1",
+          "timestamp": "2026-10-25T13:04:05+00:00",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.14",
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Failed authentication attempt 2 of 4"
+        },
+        {
+          "event_id": "scenario-benign-065-ev-2",
           "timestamp": "2026-10-25T13:04:10+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.14",
           "user": "alice",
           "status": "failed",
           "destination_port": 22,
-          "details": "Authentication failure attempt 2 for alice"
+          "details": "Failed authentication attempt 3 of 4"
         },
         {
-          "event_id": "scenario-benign-065-ev-2",
-          "timestamp": "2026-10-25T13:04:25+00:00",
+          "event_id": "scenario-benign-065-ev-3",
+          "timestamp": "2026-10-25T13:04:15+00:00",
           "event_type": "authentication",
           "source_ip": "192.168.1.14",
           "user": "alice",
-          "status": "success",
+          "status": "failed",
           "destination_port": 22,
-          "details": "Authentication success for alice"
+          "details": "Failed authentication attempt 4 of 4"
         }
       ]
     },
@@ -2799,47 +2849,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User bob mistyping password (3 failed attempts, below brute force threshold)",
+      "description": "Admin maintenance and routine logrotate file archival by bob",
       "events": [
         {
           "event_id": "scenario-benign-066-ev-0",
           "timestamp": "2026-10-25T13:05:00+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.15",
-          "user": "bob",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 1 for bob"
-        },
-        {
-          "event_id": "scenario-benign-066-ev-1",
-          "timestamp": "2026-10-25T13:05:10+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.15",
-          "user": "bob",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 2 for bob"
-        },
-        {
-          "event_id": "scenario-benign-066-ev-2",
-          "timestamp": "2026-10-25T13:05:20+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.15",
-          "user": "bob",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 3 for bob"
-        },
-        {
-          "event_id": "scenario-benign-066-ev-3",
-          "timestamp": "2026-10-25T13:05:35+00:00",
-          "event_type": "authentication",
+          "event_type": "admin_session",
           "source_ip": "192.168.1.15",
           "user": "bob",
           "status": "success",
           "destination_port": 22,
-          "details": "Authentication success for bob"
+          "details": "SSH session started; cron logrotate run"
+        },
+        {
+          "event_id": "scenario-benign-066-ev-1",
+          "timestamp": "2026-10-25T13:05:15+00:00",
+          "event_type": "file_write",
+          "source_ip": "192.168.1.15",
+          "user": "bob",
+          "status": "success",
+          "destination_port": null,
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -2848,27 +2878,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User charlie mistyping password (1 failed attempts, below brute force threshold)",
+      "description": "Admin maintenance and routine logrotate file archival by charlie",
       "events": [
         {
           "event_id": "scenario-benign-067-ev-0",
           "timestamp": "2026-10-25T13:06:00+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.16",
-          "user": "charlie",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 1 for charlie"
-        },
-        {
-          "event_id": "scenario-benign-067-ev-1",
-          "timestamp": "2026-10-25T13:06:15+00:00",
-          "event_type": "authentication",
+          "event_type": "admin_session",
           "source_ip": "192.168.1.16",
           "user": "charlie",
           "status": "success",
           "destination_port": 22,
-          "details": "Authentication success for charlie"
+          "details": "SSH session started; cron logrotate run"
+        },
+        {
+          "event_id": "scenario-benign-067-ev-1",
+          "timestamp": "2026-10-25T13:06:15+00:00",
+          "event_type": "file_write",
+          "source_ip": "192.168.1.16",
+          "user": "charlie",
+          "status": "success",
+          "destination_port": null,
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -2877,37 +2907,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User david mistyping password (2 failed attempts, below brute force threshold)",
+      "description": "Admin maintenance and routine logrotate file archival by david",
       "events": [
         {
           "event_id": "scenario-benign-068-ev-0",
           "timestamp": "2026-10-25T13:07:00+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.17",
-          "user": "david",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 1 for david"
-        },
-        {
-          "event_id": "scenario-benign-068-ev-1",
-          "timestamp": "2026-10-25T13:07:10+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.17",
-          "user": "david",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 2 for david"
-        },
-        {
-          "event_id": "scenario-benign-068-ev-2",
-          "timestamp": "2026-10-25T13:07:25+00:00",
-          "event_type": "authentication",
+          "event_type": "admin_session",
           "source_ip": "192.168.1.17",
           "user": "david",
           "status": "success",
           "destination_port": 22,
-          "details": "Authentication success for david"
+          "details": "SSH session started; cron logrotate run"
+        },
+        {
+          "event_id": "scenario-benign-068-ev-1",
+          "timestamp": "2026-10-25T13:07:15+00:00",
+          "event_type": "file_write",
+          "source_ip": "192.168.1.17",
+          "user": "david",
+          "status": "success",
+          "destination_port": null,
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -2916,47 +2936,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User emma mistyping password (3 failed attempts, below brute force threshold)",
+      "description": "Admin maintenance and routine logrotate file archival by emma",
       "events": [
         {
           "event_id": "scenario-benign-069-ev-0",
           "timestamp": "2026-10-25T13:08:00+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.18",
-          "user": "emma",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 1 for emma"
-        },
-        {
-          "event_id": "scenario-benign-069-ev-1",
-          "timestamp": "2026-10-25T13:08:10+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.18",
-          "user": "emma",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 2 for emma"
-        },
-        {
-          "event_id": "scenario-benign-069-ev-2",
-          "timestamp": "2026-10-25T13:08:20+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.18",
-          "user": "emma",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 3 for emma"
-        },
-        {
-          "event_id": "scenario-benign-069-ev-3",
-          "timestamp": "2026-10-25T13:08:35+00:00",
-          "event_type": "authentication",
+          "event_type": "admin_session",
           "source_ip": "192.168.1.18",
           "user": "emma",
           "status": "success",
           "destination_port": 22,
-          "details": "Authentication success for emma"
+          "details": "SSH session started; cron logrotate run"
+        },
+        {
+          "event_id": "scenario-benign-069-ev-1",
+          "timestamp": "2026-10-25T13:08:15+00:00",
+          "event_type": "file_write",
+          "source_ip": "192.168.1.18",
+          "user": "emma",
+          "status": "success",
+          "destination_port": null,
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -2965,27 +2965,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "User frank mistyping password (1 failed attempts, below brute force threshold)",
+      "description": "Admin maintenance and routine logrotate file archival by frank",
       "events": [
         {
           "event_id": "scenario-benign-070-ev-0",
           "timestamp": "2026-10-25T13:09:00+00:00",
-          "event_type": "authentication",
-          "source_ip": "192.168.1.19",
-          "user": "frank",
-          "status": "failed",
-          "destination_port": 22,
-          "details": "Authentication failure attempt 1 for frank"
-        },
-        {
-          "event_id": "scenario-benign-070-ev-1",
-          "timestamp": "2026-10-25T13:09:15+00:00",
-          "event_type": "authentication",
+          "event_type": "admin_session",
           "source_ip": "192.168.1.19",
           "user": "frank",
           "status": "success",
           "destination_port": 22,
-          "details": "Authentication success for frank"
+          "details": "SSH session started; cron logrotate run"
+        },
+        {
+          "event_id": "scenario-benign-070-ev-1",
+          "timestamp": "2026-10-25T13:09:15+00:00",
+          "event_type": "file_write",
+          "source_ip": "192.168.1.19",
+          "user": "frank",
+          "status": "success",
+          "destination_port": null,
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -2994,7 +2994,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by grace",
+      "description": "Admin maintenance and routine logrotate file archival by grace",
       "events": [
         {
           "event_id": "scenario-benign-071-ev-0",
@@ -3004,7 +3004,7 @@
           "user": "grace",
           "status": "success",
           "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "details": "SSH session started; cron logrotate run"
         },
         {
           "event_id": "scenario-benign-071-ev-1",
@@ -3014,7 +3014,7 @@
           "user": "grace",
           "status": "success",
           "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -3023,7 +3023,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by heidi",
+      "description": "Admin maintenance and routine logrotate file archival by heidi",
       "events": [
         {
           "event_id": "scenario-benign-072-ev-0",
@@ -3033,7 +3033,7 @@
           "user": "heidi",
           "status": "success",
           "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "details": "SSH session started; cron logrotate run"
         },
         {
           "event_id": "scenario-benign-072-ev-1",
@@ -3043,7 +3043,7 @@
           "user": "heidi",
           "status": "success",
           "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -3052,7 +3052,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by alice",
+      "description": "Admin maintenance and routine logrotate file archival by alice",
       "events": [
         {
           "event_id": "scenario-benign-073-ev-0",
@@ -3062,7 +3062,7 @@
           "user": "alice",
           "status": "success",
           "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "details": "SSH session started; cron logrotate run"
         },
         {
           "event_id": "scenario-benign-073-ev-1",
@@ -3072,7 +3072,7 @@
           "user": "alice",
           "status": "success",
           "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -3081,7 +3081,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by bob",
+      "description": "Admin maintenance and routine logrotate file archival by bob",
       "events": [
         {
           "event_id": "scenario-benign-074-ev-0",
@@ -3091,7 +3091,7 @@
           "user": "bob",
           "status": "success",
           "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "details": "SSH session started; cron logrotate run"
         },
         {
           "event_id": "scenario-benign-074-ev-1",
@@ -3101,7 +3101,7 @@
           "user": "bob",
           "status": "success",
           "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -3110,7 +3110,7 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by charlie",
+      "description": "Admin maintenance and routine logrotate file archival by charlie",
       "events": [
         {
           "event_id": "scenario-benign-075-ev-0",
@@ -3120,7 +3120,7 @@
           "user": "charlie",
           "status": "success",
           "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "details": "SSH session started; cron logrotate run"
         },
         {
           "event_id": "scenario-benign-075-ev-1",
@@ -3130,7 +3130,7 @@
           "user": "charlie",
           "status": "success",
           "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz"
         }
       ]
     },
@@ -3139,27 +3139,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by david",
+      "description": "Routine network monitoring probe on 2 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-076-ev-0",
           "timestamp": "2026-10-25T13:15:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.25",
-          "user": "david",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-076-ev-1",
-          "timestamp": "2026-10-25T13:15:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:15:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.25",
-          "user": "david",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
         }
       ]
     },
@@ -3168,27 +3168,37 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by emma",
+      "description": "Routine network monitoring probe on 3 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-077-ev-0",
           "timestamp": "2026-10-25T13:16:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.26",
-          "user": "emma",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-077-ev-1",
-          "timestamp": "2026-10-25T13:16:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:16:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.26",
-          "user": "emma",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
+        },
+        {
+          "event_id": "scenario-benign-077-ev-2",
+          "timestamp": "2026-10-25T13:16:08+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.26",
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 8080,
+          "details": "TCP SYN to port 8080 rejected"
         }
       ]
     },
@@ -3197,27 +3207,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by frank",
+      "description": "Routine network monitoring probe on 4 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-078-ev-0",
           "timestamp": "2026-10-25T13:17:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.27",
-          "user": "frank",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-078-ev-1",
-          "timestamp": "2026-10-25T13:17:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:17:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.27",
-          "user": "frank",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
+        },
+        {
+          "event_id": "scenario-benign-078-ev-2",
+          "timestamp": "2026-10-25T13:17:08+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.27",
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 8080,
+          "details": "TCP SYN to port 8080 rejected"
+        },
+        {
+          "event_id": "scenario-benign-078-ev-3",
+          "timestamp": "2026-10-25T13:17:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.27",
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 8443,
+          "details": "TCP SYN to port 8443 rejected"
         }
       ]
     },
@@ -3226,27 +3256,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by grace",
+      "description": "Routine network monitoring probe on 2 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-079-ev-0",
           "timestamp": "2026-10-25T13:18:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.28",
-          "user": "grace",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-079-ev-1",
-          "timestamp": "2026-10-25T13:18:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:18:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.28",
-          "user": "grace",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
         }
       ]
     },
@@ -3255,27 +3285,37 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by heidi",
+      "description": "Routine network monitoring probe on 3 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-080-ev-0",
           "timestamp": "2026-10-25T13:19:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.29",
-          "user": "heidi",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-080-ev-1",
-          "timestamp": "2026-10-25T13:19:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:19:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.29",
-          "user": "heidi",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
+        },
+        {
+          "event_id": "scenario-benign-080-ev-2",
+          "timestamp": "2026-10-25T13:19:08+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.29",
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 8080,
+          "details": "TCP SYN to port 8080 rejected"
         }
       ]
     },
@@ -3284,27 +3324,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by alice",
+      "description": "Routine network monitoring probe on 4 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-081-ev-0",
           "timestamp": "2026-10-25T13:20:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.10",
-          "user": "alice",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-081-ev-1",
-          "timestamp": "2026-10-25T13:20:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:20:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.10",
-          "user": "alice",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
+        },
+        {
+          "event_id": "scenario-benign-081-ev-2",
+          "timestamp": "2026-10-25T13:20:08+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.10",
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 8080,
+          "details": "TCP SYN to port 8080 rejected"
+        },
+        {
+          "event_id": "scenario-benign-081-ev-3",
+          "timestamp": "2026-10-25T13:20:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.10",
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 8443,
+          "details": "TCP SYN to port 8443 rejected"
         }
       ]
     },
@@ -3313,27 +3373,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by bob",
+      "description": "Routine network monitoring probe on 2 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-082-ev-0",
           "timestamp": "2026-10-25T13:21:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.11",
-          "user": "bob",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-082-ev-1",
-          "timestamp": "2026-10-25T13:21:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:21:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.11",
-          "user": "bob",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
         }
       ]
     },
@@ -3342,27 +3402,37 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by charlie",
+      "description": "Routine network monitoring probe on 3 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-083-ev-0",
           "timestamp": "2026-10-25T13:22:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.12",
-          "user": "charlie",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-083-ev-1",
-          "timestamp": "2026-10-25T13:22:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:22:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.12",
-          "user": "charlie",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
+        },
+        {
+          "event_id": "scenario-benign-083-ev-2",
+          "timestamp": "2026-10-25T13:22:08+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.12",
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 8080,
+          "details": "TCP SYN to port 8080 rejected"
         }
       ]
     },
@@ -3371,27 +3441,47 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by david",
+      "description": "Routine network monitoring probe on 4 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-084-ev-0",
           "timestamp": "2026-10-25T13:23:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.13",
-          "user": "david",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-084-ev-1",
-          "timestamp": "2026-10-25T13:23:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:23:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.13",
-          "user": "david",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
+        },
+        {
+          "event_id": "scenario-benign-084-ev-2",
+          "timestamp": "2026-10-25T13:23:08+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.13",
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 8080,
+          "details": "TCP SYN to port 8080 rejected"
+        },
+        {
+          "event_id": "scenario-benign-084-ev-3",
+          "timestamp": "2026-10-25T13:23:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.13",
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 8443,
+          "details": "TCP SYN to port 8443 rejected"
         }
       ]
     },
@@ -3400,27 +3490,27 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Admin maintenance task executed by emma",
+      "description": "Routine network monitoring probe on 2 ports (below scan threshold)",
       "events": [
         {
           "event_id": "scenario-benign-085-ev-0",
           "timestamp": "2026-10-25T13:24:00+00:00",
-          "event_type": "admin_session",
+          "event_type": "network",
           "source_ip": "192.168.1.14",
-          "user": "emma",
-          "status": "success",
-          "destination_port": 22,
-          "details": "SSH session started; sudo systemctl restart nginx"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "TCP SYN to port 80 rejected"
         },
         {
           "event_id": "scenario-benign-085-ev-1",
-          "timestamp": "2026-10-25T13:24:15+00:00",
-          "event_type": "file_write",
+          "timestamp": "2026-10-25T13:24:04+00:00",
+          "event_type": "network",
           "source_ip": "192.168.1.14",
-          "user": "emma",
-          "status": "success",
-          "destination_port": null,
-          "details": "Configuration file /etc/nginx/nginx.conf modified and backed up"
+          "user": "nagios-monitor",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "TCP SYN to port 443 rejected"
         }
       ]
     },
@@ -3429,37 +3519,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 3 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.15: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-086-ev-0",
           "timestamp": "2026-10-25T13:25:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.15",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-086-ev-1",
-          "timestamp": "2026-10-25T13:25:04+00:00",
+          "timestamp": "2026-10-25T13:25:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.15",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "destination_port": 22,
+          "details": "Probing port 22"
         },
         {
           "event_id": "scenario-benign-086-ev-2",
-          "timestamp": "2026-10-25T13:25:08+00:00",
+          "timestamp": "2026-10-25T13:25:06+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.15",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "destination_port": 23,
+          "details": "Probing port 23"
+        },
+        {
+          "event_id": "scenario-benign-086-ev-3",
+          "timestamp": "2026-10-25T13:25:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.15",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-086-ev-4",
+          "timestamp": "2026-10-25T13:25:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.15",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-086-ev-5",
+          "timestamp": "2026-10-25T13:25:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.15",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-086-ev-6",
+          "timestamp": "2026-10-25T13:25:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.15",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-086-ev-7",
+          "timestamp": "2026-10-25T13:25:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.15",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-086-ev-8",
+          "timestamp": "2026-10-25T13:25:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.15",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3468,47 +3618,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 4 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.16: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-087-ev-0",
           "timestamp": "2026-10-25T13:26:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.16",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-087-ev-1",
-          "timestamp": "2026-10-25T13:26:04+00:00",
+          "timestamp": "2026-10-25T13:26:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.16",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "destination_port": 22,
+          "details": "Probing port 22"
         },
         {
           "event_id": "scenario-benign-087-ev-2",
-          "timestamp": "2026-10-25T13:26:08+00:00",
+          "timestamp": "2026-10-25T13:26:06+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.16",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "destination_port": 23,
+          "details": "Probing port 23"
         },
         {
           "event_id": "scenario-benign-087-ev-3",
+          "timestamp": "2026-10-25T13:26:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.16",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-087-ev-4",
           "timestamp": "2026-10-25T13:26:12+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.16",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8443,
-          "details": "TCP SYN to port 8443 rejected"
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-087-ev-5",
+          "timestamp": "2026-10-25T13:26:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.16",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-087-ev-6",
+          "timestamp": "2026-10-25T13:26:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.16",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-087-ev-7",
+          "timestamp": "2026-10-25T13:26:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.16",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-087-ev-8",
+          "timestamp": "2026-10-25T13:26:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.16",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3517,27 +3717,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 2 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.17: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-088-ev-0",
           "timestamp": "2026-10-25T13:27:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.17",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-088-ev-1",
-          "timestamp": "2026-10-25T13:27:04+00:00",
+          "timestamp": "2026-10-25T13:27:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.17",
-          "user": "nagios-monitor",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 22,
+          "details": "Probing port 22"
+        },
+        {
+          "event_id": "scenario-benign-088-ev-2",
+          "timestamp": "2026-10-25T13:27:06+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.17",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 23,
+          "details": "Probing port 23"
+        },
+        {
+          "event_id": "scenario-benign-088-ev-3",
+          "timestamp": "2026-10-25T13:27:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.17",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-088-ev-4",
+          "timestamp": "2026-10-25T13:27:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.17",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-088-ev-5",
+          "timestamp": "2026-10-25T13:27:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.17",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-088-ev-6",
+          "timestamp": "2026-10-25T13:27:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.17",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-088-ev-7",
+          "timestamp": "2026-10-25T13:27:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.17",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-088-ev-8",
+          "timestamp": "2026-10-25T13:27:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.17",
+          "user": "unknown",
           "status": "rejected",
           "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3546,37 +3816,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 3 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.18: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-089-ev-0",
           "timestamp": "2026-10-25T13:28:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.18",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-089-ev-1",
-          "timestamp": "2026-10-25T13:28:04+00:00",
+          "timestamp": "2026-10-25T13:28:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.18",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "destination_port": 22,
+          "details": "Probing port 22"
         },
         {
           "event_id": "scenario-benign-089-ev-2",
-          "timestamp": "2026-10-25T13:28:08+00:00",
+          "timestamp": "2026-10-25T13:28:06+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.18",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "destination_port": 23,
+          "details": "Probing port 23"
+        },
+        {
+          "event_id": "scenario-benign-089-ev-3",
+          "timestamp": "2026-10-25T13:28:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.18",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-089-ev-4",
+          "timestamp": "2026-10-25T13:28:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.18",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-089-ev-5",
+          "timestamp": "2026-10-25T13:28:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.18",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-089-ev-6",
+          "timestamp": "2026-10-25T13:28:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.18",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-089-ev-7",
+          "timestamp": "2026-10-25T13:28:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.18",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-089-ev-8",
+          "timestamp": "2026-10-25T13:28:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.18",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3585,47 +3915,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 4 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.19: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-090-ev-0",
           "timestamp": "2026-10-25T13:29:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.19",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-090-ev-1",
-          "timestamp": "2026-10-25T13:29:04+00:00",
+          "timestamp": "2026-10-25T13:29:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.19",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "destination_port": 22,
+          "details": "Probing port 22"
         },
         {
           "event_id": "scenario-benign-090-ev-2",
-          "timestamp": "2026-10-25T13:29:08+00:00",
+          "timestamp": "2026-10-25T13:29:06+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.19",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "destination_port": 23,
+          "details": "Probing port 23"
         },
         {
           "event_id": "scenario-benign-090-ev-3",
+          "timestamp": "2026-10-25T13:29:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.19",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-090-ev-4",
           "timestamp": "2026-10-25T13:29:12+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.19",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8443,
-          "details": "TCP SYN to port 8443 rejected"
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-090-ev-5",
+          "timestamp": "2026-10-25T13:29:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.19",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-090-ev-6",
+          "timestamp": "2026-10-25T13:29:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.19",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-090-ev-7",
+          "timestamp": "2026-10-25T13:29:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.19",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-090-ev-8",
+          "timestamp": "2026-10-25T13:29:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.19",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3634,27 +4014,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 2 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.20: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-091-ev-0",
           "timestamp": "2026-10-25T13:30:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.20",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-091-ev-1",
-          "timestamp": "2026-10-25T13:30:04+00:00",
+          "timestamp": "2026-10-25T13:30:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.20",
-          "user": "nagios-monitor",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 22,
+          "details": "Probing port 22"
+        },
+        {
+          "event_id": "scenario-benign-091-ev-2",
+          "timestamp": "2026-10-25T13:30:06+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.20",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 23,
+          "details": "Probing port 23"
+        },
+        {
+          "event_id": "scenario-benign-091-ev-3",
+          "timestamp": "2026-10-25T13:30:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.20",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-091-ev-4",
+          "timestamp": "2026-10-25T13:30:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.20",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-091-ev-5",
+          "timestamp": "2026-10-25T13:30:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.20",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-091-ev-6",
+          "timestamp": "2026-10-25T13:30:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.20",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-091-ev-7",
+          "timestamp": "2026-10-25T13:30:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.20",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-091-ev-8",
+          "timestamp": "2026-10-25T13:30:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.20",
+          "user": "unknown",
           "status": "rejected",
           "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3663,37 +4113,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 3 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.21: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-092-ev-0",
           "timestamp": "2026-10-25T13:31:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.21",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-092-ev-1",
-          "timestamp": "2026-10-25T13:31:04+00:00",
+          "timestamp": "2026-10-25T13:31:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.21",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "destination_port": 22,
+          "details": "Probing port 22"
         },
         {
           "event_id": "scenario-benign-092-ev-2",
-          "timestamp": "2026-10-25T13:31:08+00:00",
+          "timestamp": "2026-10-25T13:31:06+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.21",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "destination_port": 23,
+          "details": "Probing port 23"
+        },
+        {
+          "event_id": "scenario-benign-092-ev-3",
+          "timestamp": "2026-10-25T13:31:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.21",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-092-ev-4",
+          "timestamp": "2026-10-25T13:31:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.21",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-092-ev-5",
+          "timestamp": "2026-10-25T13:31:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.21",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-092-ev-6",
+          "timestamp": "2026-10-25T13:31:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.21",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-092-ev-7",
+          "timestamp": "2026-10-25T13:31:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.21",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-092-ev-8",
+          "timestamp": "2026-10-25T13:31:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.21",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3702,47 +4212,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 4 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.22: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-093-ev-0",
           "timestamp": "2026-10-25T13:32:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.22",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-093-ev-1",
-          "timestamp": "2026-10-25T13:32:04+00:00",
+          "timestamp": "2026-10-25T13:32:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.22",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "destination_port": 22,
+          "details": "Probing port 22"
         },
         {
           "event_id": "scenario-benign-093-ev-2",
-          "timestamp": "2026-10-25T13:32:08+00:00",
+          "timestamp": "2026-10-25T13:32:06+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.22",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "destination_port": 23,
+          "details": "Probing port 23"
         },
         {
           "event_id": "scenario-benign-093-ev-3",
+          "timestamp": "2026-10-25T13:32:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.22",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-093-ev-4",
           "timestamp": "2026-10-25T13:32:12+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.22",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8443,
-          "details": "TCP SYN to port 8443 rejected"
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-093-ev-5",
+          "timestamp": "2026-10-25T13:32:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.22",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-093-ev-6",
+          "timestamp": "2026-10-25T13:32:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.22",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-093-ev-7",
+          "timestamp": "2026-10-25T13:32:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.22",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-093-ev-8",
+          "timestamp": "2026-10-25T13:32:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.22",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3751,27 +4311,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 2 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.23: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-094-ev-0",
           "timestamp": "2026-10-25T13:33:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.23",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-094-ev-1",
-          "timestamp": "2026-10-25T13:33:04+00:00",
+          "timestamp": "2026-10-25T13:33:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.23",
-          "user": "nagios-monitor",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 22,
+          "details": "Probing port 22"
+        },
+        {
+          "event_id": "scenario-benign-094-ev-2",
+          "timestamp": "2026-10-25T13:33:06+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.23",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 23,
+          "details": "Probing port 23"
+        },
+        {
+          "event_id": "scenario-benign-094-ev-3",
+          "timestamp": "2026-10-25T13:33:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.23",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-094-ev-4",
+          "timestamp": "2026-10-25T13:33:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.23",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-094-ev-5",
+          "timestamp": "2026-10-25T13:33:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.23",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-094-ev-6",
+          "timestamp": "2026-10-25T13:33:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.23",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-094-ev-7",
+          "timestamp": "2026-10-25T13:33:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.23",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-094-ev-8",
+          "timestamp": "2026-10-25T13:33:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.23",
+          "user": "unknown",
           "status": "rejected",
           "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3780,37 +4410,97 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 3 ports (below scan threshold)",
+      "description": "Borderline probe from 192.168.1.24: exactly 9 unique ports probed (boundary test, threshold is 10)",
       "events": [
         {
           "event_id": "scenario-benign-095-ev-0",
           "timestamp": "2026-10-25T13:34:00+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.24",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "destination_port": 21,
+          "details": "Probing port 21"
         },
         {
           "event_id": "scenario-benign-095-ev-1",
-          "timestamp": "2026-10-25T13:34:04+00:00",
+          "timestamp": "2026-10-25T13:34:03+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.24",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "destination_port": 22,
+          "details": "Probing port 22"
         },
         {
           "event_id": "scenario-benign-095-ev-2",
-          "timestamp": "2026-10-25T13:34:08+00:00",
+          "timestamp": "2026-10-25T13:34:06+00:00",
           "event_type": "network",
           "source_ip": "192.168.1.24",
-          "user": "nagios-monitor",
+          "user": "unknown",
           "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "destination_port": 23,
+          "details": "Probing port 23"
+        },
+        {
+          "event_id": "scenario-benign-095-ev-3",
+          "timestamp": "2026-10-25T13:34:09+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.24",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 25,
+          "details": "Probing port 25"
+        },
+        {
+          "event_id": "scenario-benign-095-ev-4",
+          "timestamp": "2026-10-25T13:34:12+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.24",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 53,
+          "details": "Probing port 53"
+        },
+        {
+          "event_id": "scenario-benign-095-ev-5",
+          "timestamp": "2026-10-25T13:34:15+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.24",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 80,
+          "details": "Probing port 80"
+        },
+        {
+          "event_id": "scenario-benign-095-ev-6",
+          "timestamp": "2026-10-25T13:34:18+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.24",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 110,
+          "details": "Probing port 110"
+        },
+        {
+          "event_id": "scenario-benign-095-ev-7",
+          "timestamp": "2026-10-25T13:34:21+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.24",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 143,
+          "details": "Probing port 143"
+        },
+        {
+          "event_id": "scenario-benign-095-ev-8",
+          "timestamp": "2026-10-25T13:34:24+00:00",
+          "event_type": "network",
+          "source_ip": "192.168.1.24",
+          "user": "unknown",
+          "status": "rejected",
+          "destination_port": 443,
+          "details": "Probing port 443"
         }
       ]
     },
@@ -3819,47 +4509,67 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 4 ports (below scan threshold)",
+      "description": "Untimed authentication failures from 192.168.1.25: timestamps missing/malformed (window verification test)",
       "events": [
         {
           "event_id": "scenario-benign-096-ev-0",
-          "timestamp": "2026-10-25T13:35:00+00:00",
-          "event_type": "network",
+          "timestamp": null,
+          "event_type": "authentication",
           "source_ip": "192.168.1.25",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 1"
         },
         {
           "event_id": "scenario-benign-096-ev-1",
-          "timestamp": "2026-10-25T13:35:04+00:00",
-          "event_type": "network",
+          "timestamp": "",
+          "event_type": "authentication",
           "source_ip": "192.168.1.25",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 2"
         },
         {
           "event_id": "scenario-benign-096-ev-2",
-          "timestamp": "2026-10-25T13:35:08+00:00",
-          "event_type": "network",
+          "timestamp": null,
+          "event_type": "authentication",
           "source_ip": "192.168.1.25",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 3"
         },
         {
           "event_id": "scenario-benign-096-ev-3",
-          "timestamp": "2026-10-25T13:35:12+00:00",
-          "event_type": "network",
+          "timestamp": "",
+          "event_type": "authentication",
           "source_ip": "192.168.1.25",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 8443,
-          "details": "TCP SYN to port 8443 rejected"
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 4"
+        },
+        {
+          "event_id": "scenario-benign-096-ev-4",
+          "timestamp": null,
+          "event_type": "authentication",
+          "source_ip": "192.168.1.25",
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 5"
+        },
+        {
+          "event_id": "scenario-benign-096-ev-5",
+          "timestamp": "",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.25",
+          "user": "heidi",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 6"
         }
       ]
     },
@@ -3868,27 +4578,67 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 2 ports (below scan threshold)",
+      "description": "Untimed authentication failures from 192.168.1.26: timestamps missing/malformed (window verification test)",
       "events": [
         {
           "event_id": "scenario-benign-097-ev-0",
-          "timestamp": "2026-10-25T13:36:00+00:00",
-          "event_type": "network",
+          "timestamp": null,
+          "event_type": "authentication",
           "source_ip": "192.168.1.26",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 1"
         },
         {
           "event_id": "scenario-benign-097-ev-1",
-          "timestamp": "2026-10-25T13:36:04+00:00",
-          "event_type": "network",
+          "timestamp": "",
+          "event_type": "authentication",
           "source_ip": "192.168.1.26",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 2"
+        },
+        {
+          "event_id": "scenario-benign-097-ev-2",
+          "timestamp": null,
+          "event_type": "authentication",
+          "source_ip": "192.168.1.26",
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 3"
+        },
+        {
+          "event_id": "scenario-benign-097-ev-3",
+          "timestamp": "",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.26",
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 4"
+        },
+        {
+          "event_id": "scenario-benign-097-ev-4",
+          "timestamp": null,
+          "event_type": "authentication",
+          "source_ip": "192.168.1.26",
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 5"
+        },
+        {
+          "event_id": "scenario-benign-097-ev-5",
+          "timestamp": "",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.26",
+          "user": "alice",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 6"
         }
       ]
     },
@@ -3897,37 +4647,67 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 3 ports (below scan threshold)",
+      "description": "Untimed authentication failures from 192.168.1.27: timestamps missing/malformed (window verification test)",
       "events": [
         {
           "event_id": "scenario-benign-098-ev-0",
-          "timestamp": "2026-10-25T13:37:00+00:00",
-          "event_type": "network",
+          "timestamp": null,
+          "event_type": "authentication",
           "source_ip": "192.168.1.27",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 1"
         },
         {
           "event_id": "scenario-benign-098-ev-1",
-          "timestamp": "2026-10-25T13:37:04+00:00",
-          "event_type": "network",
+          "timestamp": "",
+          "event_type": "authentication",
           "source_ip": "192.168.1.27",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 2"
         },
         {
           "event_id": "scenario-benign-098-ev-2",
-          "timestamp": "2026-10-25T13:37:08+00:00",
-          "event_type": "network",
+          "timestamp": null,
+          "event_type": "authentication",
           "source_ip": "192.168.1.27",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 3"
+        },
+        {
+          "event_id": "scenario-benign-098-ev-3",
+          "timestamp": "",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.27",
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 4"
+        },
+        {
+          "event_id": "scenario-benign-098-ev-4",
+          "timestamp": null,
+          "event_type": "authentication",
+          "source_ip": "192.168.1.27",
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 5"
+        },
+        {
+          "event_id": "scenario-benign-098-ev-5",
+          "timestamp": "",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.27",
+          "user": "bob",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 6"
         }
       ]
     },
@@ -3936,47 +4716,67 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 4 ports (below scan threshold)",
+      "description": "Untimed authentication failures from 192.168.1.28: timestamps missing/malformed (window verification test)",
       "events": [
         {
           "event_id": "scenario-benign-099-ev-0",
-          "timestamp": "2026-10-25T13:38:00+00:00",
-          "event_type": "network",
+          "timestamp": null,
+          "event_type": "authentication",
           "source_ip": "192.168.1.28",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "user": "charlie",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 1"
         },
         {
           "event_id": "scenario-benign-099-ev-1",
-          "timestamp": "2026-10-25T13:38:04+00:00",
-          "event_type": "network",
+          "timestamp": "",
+          "event_type": "authentication",
           "source_ip": "192.168.1.28",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "user": "charlie",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 2"
         },
         {
           "event_id": "scenario-benign-099-ev-2",
-          "timestamp": "2026-10-25T13:38:08+00:00",
-          "event_type": "network",
+          "timestamp": null,
+          "event_type": "authentication",
           "source_ip": "192.168.1.28",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 8080,
-          "details": "TCP SYN to port 8080 rejected"
+          "user": "charlie",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 3"
         },
         {
           "event_id": "scenario-benign-099-ev-3",
-          "timestamp": "2026-10-25T13:38:12+00:00",
-          "event_type": "network",
+          "timestamp": "",
+          "event_type": "authentication",
           "source_ip": "192.168.1.28",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 8443,
-          "details": "TCP SYN to port 8443 rejected"
+          "user": "charlie",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 4"
+        },
+        {
+          "event_id": "scenario-benign-099-ev-4",
+          "timestamp": null,
+          "event_type": "authentication",
+          "source_ip": "192.168.1.28",
+          "user": "charlie",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 5"
+        },
+        {
+          "event_id": "scenario-benign-099-ev-5",
+          "timestamp": "",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.28",
+          "user": "charlie",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 6"
         }
       ]
     },
@@ -3985,27 +4785,67 @@
       "label": "benign",
       "expected_attack": false,
       "expected_rule": null,
-      "description": "Routine network monitoring probe on 2 ports (below scan threshold)",
+      "description": "Untimed authentication failures from 192.168.1.29: timestamps missing/malformed (window verification test)",
       "events": [
         {
           "event_id": "scenario-benign-100-ev-0",
-          "timestamp": "2026-10-25T13:39:00+00:00",
-          "event_type": "network",
+          "timestamp": null,
+          "event_type": "authentication",
           "source_ip": "192.168.1.29",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 80,
-          "details": "TCP SYN to port 80 rejected"
+          "user": "david",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 1"
         },
         {
           "event_id": "scenario-benign-100-ev-1",
-          "timestamp": "2026-10-25T13:39:04+00:00",
-          "event_type": "network",
+          "timestamp": "",
+          "event_type": "authentication",
           "source_ip": "192.168.1.29",
-          "user": "nagios-monitor",
-          "status": "rejected",
-          "destination_port": 443,
-          "details": "TCP SYN to port 443 rejected"
+          "user": "david",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 2"
+        },
+        {
+          "event_id": "scenario-benign-100-ev-2",
+          "timestamp": null,
+          "event_type": "authentication",
+          "source_ip": "192.168.1.29",
+          "user": "david",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 3"
+        },
+        {
+          "event_id": "scenario-benign-100-ev-3",
+          "timestamp": "",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.29",
+          "user": "david",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 4"
+        },
+        {
+          "event_id": "scenario-benign-100-ev-4",
+          "timestamp": null,
+          "event_type": "authentication",
+          "source_ip": "192.168.1.29",
+          "user": "david",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 5"
+        },
+        {
+          "event_id": "scenario-benign-100-ev-5",
+          "timestamp": "",
+          "event_type": "authentication",
+          "source_ip": "192.168.1.29",
+          "user": "david",
+          "status": "failed",
+          "destination_port": 22,
+          "details": "Untimed failed attempt 6"
         }
       ]
     },

@@ -1,11 +1,12 @@
 {
   "metadata": {
-    "evaluation_timestamp": "2026-10-29T16:26:34.823908+00:00",
+    "evaluation_timestamp": "2026-10-30T11:47:09.120027+00:00",
+    "evaluation_scope": "scenario-level",
     "corpus_version": "2026.10.1",
     "rules_version": "2026.10.1",
     "risk_policy_version": "risk-policy-v1",
     "total_scenarios_evaluated": 150,
-    "synthetic_evaluation_disclosure": "This benchmark is a synthetic evaluation based on a deterministic labeled corpus (tests/fixtures/synthetic_evaluation_corpus.json). It measures rule engine logic against modeled scenarios and does NOT represent measured real-world Security Operations Center (SOC) performance in production enterprise networks."
+    "synthetic_evaluation_disclosure": "This benchmark is a synthetic evaluation based on a deterministic labeled corpus (tests/fixtures/synthetic_evaluation_corpus.json). It measures scenario-level rule engine logic and deterministic risk scoring against modeled scenarios. It does NOT represent measured real-world Security Operations Center (SOC) performance in production enterprise networks."
   },
   "target_thresholds": {
     "precision": {
@@ -35,14 +36,14 @@
     "false_positives": 0,
     "true_negatives": 100,
     "false_negatives": 0,
-    "total_evaluated": 150,
     "precision": 1.0,
     "recall": 1.0,
     "f1_score": 1.0,
     "false_positive_rate": 0.0,
     "precision_denominator": 50,
     "recall_denominator": 50,
-    "fpr_denominator": 100
+    "fpr_denominator": 100,
+    "total_evaluated": 150
   },
   "per_rule_metrics": {
     "RULE_BRUTE_FORCE_AUTH": {
@@ -50,64 +51,118 @@
       "false_positives": 0,
       "true_negatives": 130,
       "false_negatives": 0,
-      "total_evaluated": 150,
       "precision": 1.0,
       "recall": 1.0,
       "f1_score": 1.0,
       "false_positive_rate": 0.0,
       "precision_denominator": 20,
       "recall_denominator": 20,
-      "fpr_denominator": 130
+      "fpr_denominator": 130,
+      "total_evaluated": 150
     },
     "RULE_PORT_SCAN_REJECT": {
       "true_positives": 20,
       "false_positives": 0,
       "true_negatives": 130,
       "false_negatives": 0,
-      "total_evaluated": 150,
       "precision": 1.0,
       "recall": 1.0,
       "f1_score": 1.0,
       "false_positive_rate": 0.0,
       "precision_denominator": 20,
       "recall_denominator": 20,
-      "fpr_denominator": 130
+      "fpr_denominator": 130,
+      "total_evaluated": 150
     },
     "RULE_RANSOMWARE_INDICATOR": {
       "true_positives": 10,
       "false_positives": 0,
       "true_negatives": 140,
       "false_negatives": 0,
-      "total_evaluated": 150,
       "precision": 1.0,
       "recall": 1.0,
       "f1_score": 1.0,
       "false_positive_rate": 0.0,
       "precision_denominator": 10,
       "recall_denominator": 10,
-      "fpr_denominator": 140
+      "fpr_denominator": 140,
+      "total_evaluated": 150
     }
+  },
+  "risk_scoring_validation": {
+    "risk_categories_count": {
+      "Critical": 0,
+      "High": 0,
+      "Medium": 31,
+      "Low": 119
+    },
+    "mean_attack_risk_score": 41.5,
+    "mean_benign_risk_score": 0.0,
+    "attack_scores_evaluated": 50,
+    "benign_scores_evaluated": 100,
+    "per_attack_class_summary": {
+      "Brute Force": {
+        "evaluated_count": 20,
+        "mean_risk_score": 41.0,
+        "min_risk_score": 36,
+        "max_risk_score": 45,
+        "categories": {
+          "Critical": 0,
+          "High": 0,
+          "Medium": 15,
+          "Low": 5
+        },
+        "low_severity_count": 5
+      },
+      "Port Scan": {
+        "evaluated_count": 20,
+        "mean_risk_score": 43.75,
+        "min_risk_score": 37,
+        "max_risk_score": 51,
+        "categories": {
+          "Critical": 0,
+          "High": 0,
+          "Medium": 16,
+          "Low": 4
+        },
+        "low_severity_count": 4
+      },
+      "Ransomware": {
+        "evaluated_count": 10,
+        "mean_risk_score": 38.0,
+        "min_risk_score": 38,
+        "max_risk_score": 38,
+        "categories": {
+          "Critical": 0,
+          "High": 0,
+          "Medium": 0,
+          "Low": 10
+        },
+        "low_severity_count": 10
+      }
+    },
+    "severity_rationale_disclosure": "Detection classification identifies the attack technique (100% recall), whereas risk scoring quantifies incident operational impact using multi-factor weights (severity, volume, recurrence, centrality, and port criticality). Isolated boundary attacks with zero recurrence and low centrality legitimately receive Low operational risk scores (< 40)."
   },
   "latency_statistics": {
     "detection_rules_ms": {
       "total_samples": 150,
-      "mean_ms": 0.0378,
-      "p50_ms": 0.0207,
-      "p95_ms": 0.0789,
-      "p99_ms": 0.0982,
-      "min_ms": 0.0073,
-      "max_ms": 1.1192,
-      "methodology": "In-process monotonic time (time.perf_counter_ns) for evaluate_detection_rules over normalized events"
+      "mean_ms": 0.0474,
+      "p50_ms": 0.0277,
+      "p95_ms": 0.1202,
+      "p99_ms": 0.2129,
+      "min_ms": 0.013,
+      "max_ms": 0.3514,
+      "methodology": "In-process monotonic timer (time.perf_counter_ns) for evaluate_detection_rules with warmup"
     },
     "end_to_end_detection_and_risk_ms": {
       "total_samples": 150,
-      "mean_ms": 0.0535,
-      "p50_ms": 0.0286,
-      "p95_ms": 0.0925,
-      "p99_ms": 0.3147,
-      "min_ms": 0.0168,
-      "max_ms": 1.6747,
-      "methodology": "In-process monotonic time (time.perf_counter_ns) for evaluate_detection_rules + evaluate_risk"
+      "mean_ms": 0.0733,
+      "p50_ms": 0.0404,
+      "p95_ms": 0.1635,
+      "p99_ms": 0.2842,
+      "min_ms": 0.024,
+      "max_ms": 1.1248,
+      "methodology": "In-process monotonic timer (time.perf_counter_ns) for evaluate_detection_rules + evaluate_risk"
     }
   }
 }

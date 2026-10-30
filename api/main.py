@@ -14,6 +14,8 @@ import anyio
 import ollama
 from apscheduler.schedulers.background import BackgroundScheduler
 from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import ConnectionError as ESConnectionError
+from elasticsearch.exceptions import ConnectionTimeout, TransportError
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -21,6 +23,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from orchestrator.workflow_graph import build_workflow
 from pydantic import BaseModel, Field
 
+from zylar.analysis.correlation_service import CorrelationGraphResult, build_correlation_graph
 from zylar.core.logging import configure_logging
 from zylar.core.metrics import get_metrics_collector
 from zylar.core.security import (
@@ -79,18 +82,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.ingestion_worker = worker
 
-    scheduler = BackgroundScheduler(timezone="UTC")
-    scheduler.add_job(worker.run_poll_cycle, "interval", seconds=30, id="threat_scan")
-    scheduler.start()
-    logger.info("Autonomous checkpointed ingestion scheduler started in lifespan context.")
+    scheduler: BackgroundScheduler | None = None
+    if settings.enable_ingestion_scheduler:
+        scheduler = BackgroundScheduler(timezone="UTC")
+        scheduler.add_job(worker.run_poll_cycle, "interval", seconds=30, id="threat_scan")
+        scheduler.start()
+        app.state.scheduler = scheduler
+        logger.info("Autonomous checkpointed ingestion scheduler started in lifespan context.")
+    else:
+        app.state.scheduler = None
+        logger.info("Ingestion scheduler disabled in this process (API-only mode).")
 
     yield
 
-    try:
-        scheduler.shutdown(wait=False)
-        logger.info("Autonomous background scheduler shut down cleanly.")
-    except Exception as exc:
-        logger.warning("Error during scheduler shutdown: %s", exc)
+    if scheduler is not None:
+        try:
+            scheduler.shutdown(wait=False)
+            logger.info("Autonomous background scheduler shut down cleanly.")
+        except Exception as exc:
+            logger.warning("Error during scheduler shutdown: %s", exc)
 
     try:
         db_manager.dispose()
@@ -309,6 +319,12 @@ async def health_ready(request: Request, response: Response) -> dict[str, Any]:
         checks["ollama"] = "degraded"
         is_degraded = True
 
+    # 4. Report Autonomous Scheduler health check if configured
+    sched = getattr(request.app.state, "scheduler", None)
+    if sched is not None:
+        sched_running = getattr(sched, "running", False)
+        checks["scheduler"] = "healthy" if sched_running else "stopped"
+
     if not is_ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         overall_status = "unhealthy"
@@ -336,7 +352,7 @@ async def get_ingestion_status(
     request: Request,
     current_user: Annotated[UserPrincipal, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """Returns ingestion checkpoint progress, watermark lag, and dead-letter queue metrics."""
+    """Returns ingestion checkpoint progress, watermark lag, dead-letter queue, and scheduler metrics."""
     db_mgr: DatabaseManager | None = getattr(request.app.state, "db_manager", None)
     session_factory = db_mgr.session_factory if db_mgr else None
 
@@ -346,6 +362,16 @@ async def get_ingestion_status(
             cp = uow.checkpoints.get("elasticsearch-soc-events")
             lag = uow.checkpoints.get_checkpoint_lag_seconds("elasticsearch-soc-events")
             dead_letters = uow.checkpoints.get_dead_letter_count("elasticsearch-soc-events")
+
+        sched = getattr(request.app.state, "scheduler", None)
+        sched_running = sched is not None and getattr(sched, "running", False)
+        worker = getattr(request.app.state, "ingestion_worker", None)
+        worker_status = worker.get_worker_status() if worker else {}
+        scheduler_info = {
+            "status": "active" if sched_running else ("offline" if sched is None else "stopped"),
+            "running": sched_running,
+            **worker_status,
+        }
 
         if cp is None:
             return {
@@ -359,6 +385,7 @@ async def get_ingestion_status(
                 "dead_letters_count": 0,
                 "retry_count": 0,
                 "last_error": None,
+                "scheduler": scheduler_info,
             }
 
         return {
@@ -372,9 +399,68 @@ async def get_ingestion_status(
             "dead_letters_count": dead_letters,
             "retry_count": cp.retry_count,
             "last_error": sanitize_audit_details(cp.last_error) if cp.last_error else None,
+            "scheduler": scheduler_info,
         }
 
     return await anyio.to_thread.run_sync(query_status)
+
+
+@app.get("/api/threat-graph")
+async def get_threat_graph(
+    request: Request,
+    current_user: Annotated[UserPrincipal, Depends(get_current_user)],
+    minutes: Annotated[int, Query(ge=1, le=1440)] = 15,
+    max_events: Annotated[int, Query(ge=1, le=1000)] = 500,
+) -> dict[str, Any]:
+    """Generates the canonical bounded SOC threat correlation graph using the Task 3 correlation service."""
+    try:
+        es = Elasticsearch(**settings.elasticsearch_client_kwargs)
+        now = datetime.now(UTC)
+        past = now - timedelta(minutes=minutes)
+        query = {
+            "query": {"range": {"timestamp": {"gte": past.isoformat(), "lte": now.isoformat()}}},
+            "size": max_events,
+            "sort": [{"timestamp": {"order": "desc"}}],
+        }
+        res = await anyio.to_thread.run_sync(
+            lambda: es.search(index=settings.elasticsearch_index, body=query)
+        )
+        logs = [
+            hit["_source"]
+            for hit in res.get("hits", {}).get("hits", [])
+            if isinstance(hit.get("_source"), dict)
+        ]
+        logs = logs[:max_events]
+        graph_result: CorrelationGraphResult = await anyio.to_thread.run_sync(
+            lambda: build_correlation_graph(logs)
+        )
+        return {
+            "dot_graph": graph_result.dot_representation,
+            "total_nodes": graph_result.node_count,
+            "total_edges": graph_result.edge_count,
+            "top_entities": list(graph_result.top_entities),
+            "centrality_score": graph_result.centrality_score,
+            "input_event_count": graph_result.input_event_count,
+            "processed_event_count": graph_result.processed_event_count,
+            "event_limit_reached": graph_result.event_limit_reached,
+            "node_limit_reached": graph_result.node_limit_reached,
+            "edge_limit_reached": graph_result.edge_limit_reached,
+            "truncated": graph_result.is_truncated,
+        }
+    except (ESConnectionError, ConnectionTimeout, TransportError, OSError) as exc:
+        corr_id = getattr(request.state, "correlation_id", "unknown")
+        logger.exception("Upstream search backend error building threat graph [%s]: %s", corr_id, type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to retrieve log telemetry from search backend for threat correlation graph.",
+        ) from exc
+    except Exception as exc:
+        corr_id = getattr(request.state, "correlation_id", "unknown")
+        logger.exception("Failed to build threat graph [%s]: %s", corr_id, type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error while computing threat correlation graph.",
+        ) from exc
 
 
 @app.post("/api/workflow/run")
@@ -386,7 +472,7 @@ async def run_workflow(
     """Triggers the full agentic workflow on a bounded set of normalized events."""
     collector = get_metrics_collector()
     raw_logs = [ev.model_dump(mode="json") for ev in req.events]
-    collector.record_event_ingested(len(raw_logs))
+    collector.record_events_received(len(raw_logs))
     t0 = datetime.now(UTC)
 
     try:
@@ -395,6 +481,7 @@ async def run_workflow(
         final_state = await anyio.to_thread.run_sync(graph.invoke, {"raw_logs": raw_logs})
         duration_sec = (datetime.now(UTC) - t0).total_seconds()
         collector.record_workflow_execution("success", duration_sec)
+        collector.record_events_processed(len(raw_logs))
 
         rule_matches = final_state.get("rule_matches", [])
         if isinstance(rule_matches, list):

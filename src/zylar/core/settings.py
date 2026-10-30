@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     elasticsearch_index: str = Field(default="zylar-logs", min_length=1, max_length=255)
     elasticsearch_username: str = Field(default="elastic", min_length=1, max_length=128)
     elasticsearch_password: SecretStr | None = None
+    elasticsearch_verify_certs: bool = Field(
+        default=True,
+        description="Whether to verify TLS certificates when connecting to HTTPS Elasticsearch.",
+    )
+    enable_ingestion_scheduler: bool = Field(
+        default=True,
+        description="Controls whether this process starts the autonomous background ingestion scheduler.",
+    )
     database_url: str = "postgresql+psycopg://zylar:change-me@127.0.0.1:5434/zylar_db"
     db_pool_size: PositiveInt = 10
     db_max_overflow: int = Field(default=20, ge=0)
@@ -123,18 +131,33 @@ class Settings(BaseSettings):
 
     @property
     def elasticsearch_client_kwargs(self) -> dict[str, Any]:
-        """Returns connection arguments for the elasticsearch.Elasticsearch client."""
+        """Returns connection arguments for the elasticsearch.Elasticsearch client.
+
+        Extracts a clean, credential-free host URL and supplies explicit basic_auth
+        credentials from settings or embedded URL credentials, enforcing TLS verification.
+        """
         url_str = str(self.elasticsearch_url).rstrip("/")
         parsed = urllib.parse.urlsplit(url_str)
+        host = parsed.hostname or "127.0.0.1"
+        port_str = f":{parsed.port}" if parsed.port is not None else ""
+        clean_url = f"{parsed.scheme}://{host}{port_str}{parsed.path}".rstrip("/")
+
         kwargs: dict[str, Any] = {
-            "hosts": [url_str],
+            "hosts": [clean_url],
             "request_timeout": self.request_timeout_seconds,
         }
-        if not parsed.password and self.elasticsearch_password:
+        if parsed.scheme.lower() == "https":
+            kwargs["verify_certs"] = self.elasticsearch_verify_certs
+
+        if self.elasticsearch_password:
+            username = self.elasticsearch_username or parsed.username or "elastic"
             kwargs["basic_auth"] = (
-                self.elasticsearch_username,
+                username,
                 self.elasticsearch_password.get_secret_value(),
             )
+        elif parsed.password:
+            kwargs["basic_auth"] = (parsed.username or "elastic", parsed.password)
+
         return kwargs
 
     @model_validator(mode="after")

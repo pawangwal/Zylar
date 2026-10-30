@@ -159,3 +159,37 @@ def test_per_rule_metrics_isolation(corpus_data: dict):
     assert rw["false_positives"] == 0
     assert rw["precision"] == 1.0
     assert rw["recall"] == 1.0
+
+
+def test_benchmark_risk_scoring_validation(corpus_data: dict):
+    report = run_benchmark(corpus_data)
+    assert report["metadata"]["evaluation_scope"] == "scenario-level"
+    assert "risk_scoring_validation" in report
+
+    risk_val = report["risk_scoring_validation"]
+    assert risk_val["mean_attack_risk_score"] > 30.0
+    assert risk_val["mean_benign_risk_score"] == 0.0
+    assert risk_val["risk_categories_count"]["Medium"] > 0
+    assert risk_val["risk_categories_count"]["Low"] == 119
+
+    per_class = risk_val["per_attack_class_summary"]
+    assert "Brute Force" in per_class
+    assert "Port Scan" in per_class
+    assert "Ransomware" in per_class
+    assert per_class["Brute Force"]["evaluated_count"] == 20
+    assert per_class["Port Scan"]["evaluated_count"] == 20
+    assert per_class["Ransomware"]["evaluated_count"] == 10
+    assert per_class["Ransomware"]["mean_risk_score"] == 38.0
+    assert per_class["Ransomware"]["low_severity_count"] == 10
+
+
+
+def test_generator_byte_for_byte_reproducibility():
+    from scripts.generate_synthetic_corpus import generate_corpus
+
+    c1 = generate_corpus()
+    c2 = generate_corpus()
+
+    j1 = json.dumps(c1, indent=2, sort_keys=True)
+    j2 = json.dumps(c2, indent=2, sort_keys=True)
+    assert j1 == j2

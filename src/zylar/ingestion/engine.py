@@ -8,6 +8,7 @@ and atomic single-transaction persistence in PostgreSQL.
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ from elasticsearch.exceptions import ConnectionTimeout, TransportError
 from orchestrator.workflow_graph import build_workflow
 from sqlalchemy.orm import Session, sessionmaker
 
+from zylar.core.metrics import get_metrics_collector
 from zylar.core.settings import Settings, get_settings
 from zylar.persistence.dtos import IncidentCreate
 from zylar.persistence.exceptions import StaleLeaseError
@@ -89,6 +91,29 @@ class CheckpointedIngestionWorker:
         self.backoff_initial_seconds = backoff_initial_seconds
         self.backoff_max_seconds = backoff_max_seconds
         self.backoff_factor = backoff_factor
+        self._last_poll_cycle: datetime | None = None
+        self._last_successful_cycle: datetime | None = None
+        self._last_failed_cycle: datetime | None = None
+        self._last_error: str | None = None
+
+    def get_worker_status(self) -> dict[str, Any]:
+        """Returns live execution timestamps and error telemetry for the worker."""
+        return {
+            "worker_id": self.worker_id,
+            "stream_id": self.stream_id,
+            "last_poll_cycle": (
+                self._last_poll_cycle.isoformat() if self._last_poll_cycle else None
+            ),
+            "last_successful_cycle": (
+                self._last_successful_cycle.isoformat()
+                if self._last_successful_cycle
+                else None
+            ),
+            "last_failed_cycle": (
+                self._last_failed_cycle.isoformat() if self._last_failed_cycle else None
+            ),
+            "last_error": self._last_error,
+        }
 
     def _get_es_client(self) -> Elasticsearch:
         if self._es_client is None:
@@ -172,6 +197,8 @@ class CheckpointedIngestionWorker:
         try:
             res = es.search(index=self._settings.elasticsearch_index, body=query)
             hits = res.get("hits", {}).get("hits", [])
+            collector = get_metrics_collector()
+            collector.record_events_received(len(hits))
         except (ESConnectionError, ConnectionTimeout, TransportError, OSError) as exc:
             logger.error("Transient error fetching events from Elasticsearch: %s", exc)
             return self._handle_failure(exc, lease_generation=lease_generation, is_transient=True)
@@ -223,6 +250,10 @@ class CheckpointedIngestionWorker:
                 continue
 
             eligible_hits.append(hit)
+
+        dup_count = len(hits) - len(eligible_hits)
+        if dup_count > 0:
+            collector.record_events_deduplicated(dup_count)
 
         if not eligible_hits:
             # All returned records were duplicates at the watermark boundary
@@ -322,6 +353,9 @@ class CheckpointedIngestionWorker:
                 uow.checkpoints.release_lease(self.stream_id, self.worker_id, lease_generation)
                 uow.commit()
 
+            if dead_letters:
+                collector.record_events_quarantined(len(dead_letters))
+
             return IngestionBatchResult(
                 stream_id=self.stream_id,
                 status="QUARANTINED",
@@ -374,7 +408,28 @@ class CheckpointedIngestionWorker:
                     len(state.get("anomalies", [])),
                     self._workflow_invoker is not None,
                 )
-                workflow_result = self._invoke_workflow(valid_records, defer_persistence=True)
+                t_wf0 = time.perf_counter()
+                try:
+                    workflow_result = self._invoke_workflow(
+                        valid_records, defer_persistence=True
+                    )
+                    wf_dur = time.perf_counter() - t_wf0
+                    collector.record_workflow_execution("success", wf_dur)
+                except Exception:
+                    wf_dur = time.perf_counter() - t_wf0
+                    collector.record_workflow_execution("failed", wf_dur)
+                    raise
+
+                rule_matches = workflow_result.get("rule_matches") or []
+                if isinstance(rule_matches, (list, tuple)):
+                    for rm in rule_matches:
+                        r_id = (
+                            rm.get("rule_id")
+                            if isinstance(rm, dict)
+                            else getattr(rm, "rule_id", None)
+                        )
+                        if r_id:
+                            collector.record_detection_rule_fired(str(r_id))
             else:
                 logger.info(
                     "Processed %d events from stream '%s'; 0 statistical anomalies.",
@@ -413,6 +468,10 @@ class CheckpointedIngestionWorker:
                 )
                 uow.checkpoints.release_lease(self.stream_id, self.worker_id, lease_generation)
                 uow.commit()
+
+            collector.record_events_processed(len(valid_records))
+            if dead_letters:
+                collector.record_events_quarantined(len(dead_letters))
 
             # 9. Save file artifacts outside the transaction (failure does not compromise DB state)
             if incident_dto is not None:
@@ -486,8 +545,15 @@ class CheckpointedIngestionWorker:
 
     def run_poll_cycle(self) -> None:
         """Top-level invocation designed for BackgroundScheduler jobs."""
+        self._last_poll_cycle = datetime.now(UTC)
         try:
             res = self.poll_and_process_batch()
+            if res.status in ("SUCCESS", "IDLE"):
+                self._last_successful_cycle = datetime.now(UTC)
+                self._last_error = None
+            elif "FAILURE" in res.status:
+                self._last_failed_cycle = datetime.now(UTC)
+                self._last_error = res.error
             if res.status not in ("IDLE", "LEASE_NOT_ACQUIRED"):
                 logger.info(
                     "Ingestion cycle completed for '%s': status=%s, processed=%d, dead_letters=%d",
@@ -497,4 +563,6 @@ class CheckpointedIngestionWorker:
                     res.dead_letters_count,
                 )
         except Exception as exc:
+            self._last_failed_cycle = datetime.now(UTC)
+            self._last_error = str(exc)
             logger.error("Unhandled exception in ingestion worker cycle: %s", exc)

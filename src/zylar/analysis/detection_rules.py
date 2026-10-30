@@ -4,7 +4,7 @@ import datetime
 from collections import defaultdict
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from zylar.analysis.risk_scoring import parse_valid_port
 
@@ -19,8 +19,8 @@ class RuleMatch(BaseModel):
     rule_id: str
     rule_name: str
     confidence: float
-    matched_event_ids: list[str]
-    indicators: dict[str, Any]
+    matched_event_ids: tuple[str, ...] = Field(default_factory=tuple)
+    indicators: dict[str, Any] = Field(default_factory=dict)
 
 
 class DetectionResult(BaseModel):
@@ -30,7 +30,7 @@ class DetectionResult(BaseModel):
 
     is_attack: bool
     classification: str
-    rule_matches: list[RuleMatch]
+    rule_matches: tuple[RuleMatch, ...] = Field(default_factory=tuple)
     statistical_outliers_count: int = 0
     rules_version: str = RULES_VERSION
 
@@ -64,16 +64,17 @@ def _find_windowed_events(
     window_seconds: int,
     min_count: int,
 ) -> list[dict[str, Any]] | None:
-    """Finds if there is any sliding window of duration <= window_seconds with >= min_count events."""
-    if len(events) < min_count:
+    """Finds if there is any sliding window of duration <= window_seconds with >= min_count events.
+
+    Events lacking a valid timestamp are excluded from sliding-window calculation because
+    unverifiable time placement cannot satisfy temporal threshold constraints.
+    """
+    # Exclude events without verified timestamps
+    timed_events = [(ts, e) for ts, e in events if ts is not None]
+    if len(timed_events) < min_count:
         return None
 
-    # If any event lacks timestamp, treat all events as co-temporal in the batch
-    if any(ts is None for ts, _ in events):
-        return [e for _, e in events]
-
     # Sort events chronologically
-    timed_events = [(ts, e) for ts, e in events if ts is not None]
     sorted_timed = sorted(timed_events, key=lambda x: x[0])
 
     left = 0
@@ -97,29 +98,25 @@ def _find_windowed_port_scan(
     window_seconds: int,
     min_unique_ports: int,
 ) -> tuple[set[int], list[dict[str, Any]]] | None:
-    """Finds if there is any sliding window with >= min_unique_ports distinct destination ports."""
+    """Finds if there is any sliding window with >= min_unique_ports distinct destination ports.
+
+    Events lacking a valid timestamp are excluded from sliding-window calculation.
+    """
     if not events:
         return None
 
-    # Check overall unique ports first
-    ports_map: list[tuple[datetime.datetime | None, int, dict[str, Any]]] = []
+    # Map only valid destination ports with valid timestamps
+    ports_map: list[tuple[datetime.datetime, int, dict[str, Any]]] = []
     for ts, e in events:
-        p = parse_valid_port(e.get("destination_port"))
-        if p is not None:
-            ports_map.append((ts, p, e))
+        if ts is not None:
+            p = parse_valid_port(e.get("destination_port"))
+            if p is not None:
+                ports_map.append((ts, p, e))
 
-    if not ports_map:
+    if len(ports_map) < min_unique_ports:
         return None
 
-    # If any timestamp is None, evaluate across the whole batch
-    if any(ts is None for ts, _, _ in ports_map):
-        unique_ports = {p for _, p, _ in ports_map}
-        if len(unique_ports) >= min_unique_ports:
-            return unique_ports, [e for _, _, e in ports_map]
-        return None
-
-    timed_ports = [(ts, p, e) for ts, p, e in ports_map if ts is not None]
-    sorted_ports = sorted(timed_ports, key=lambda x: x[0])
+    sorted_ports = sorted(ports_map, key=lambda x: x[0])
     left = 0
     window_delta = datetime.timedelta(seconds=window_seconds)
 
@@ -158,7 +155,7 @@ def evaluate_detection_rules(
         return DetectionResult(
             is_attack=False,
             classification="None",
-            rule_matches=[],
+            rule_matches=(),
             statistical_outliers_count=statistical_outliers_count,
             rules_version=RULES_VERSION,
         )
@@ -187,7 +184,7 @@ def evaluate_detection_rules(
                 rule_id="RULE_RANSOMWARE_INDICATOR",
                 rule_name="Mass File Encryption/Ransomware Indicators",
                 confidence=0.95,
-                matched_event_ids=matched_ids,
+                matched_event_ids=tuple(matched_ids),
                 indicators={"count": len(rw_events)},
             )
         )
@@ -204,7 +201,8 @@ def evaluate_detection_rules(
         port = parse_valid_port(e.get("destination_port"))
 
         is_auth = (
-            event_type in ("authentication", "login", "ssh_login", "auth")
+            event_type in ("authentication", "login", "ssh_login", "auth", "auth_failure")
+            or "auth" in event_type
             or port in (22, 3389)
         )
         is_failure = status in ("failed", "rejected", "failure")
@@ -224,7 +222,7 @@ def evaluate_detection_rules(
                     rule_id="RULE_BRUTE_FORCE_AUTH",
                     rule_name="Repeated Failed Authentication Attempts",
                     confidence=0.85,
-                    matched_event_ids=matched_ids,
+                    matched_event_ids=tuple(matched_ids),
                     indicators={
                         "source_ip": ip,
                         "user": user,
@@ -254,7 +252,7 @@ def evaluate_detection_rules(
                     rule_id="RULE_PORT_SCAN_REJECT",
                     rule_name="Multi-Port Connection Probing",
                     confidence=0.80,
-                    matched_event_ids=matched_ids,
+                    matched_event_ids=tuple(matched_ids),
                     indicators={
                         "source_ip": ip,
                         "unique_ports_count": len(unique_ports),
@@ -278,7 +276,7 @@ def evaluate_detection_rules(
     return DetectionResult(
         is_attack=len(rule_matches) > 0,
         classification=classification,
-        rule_matches=rule_matches,
+        rule_matches=tuple(rule_matches),
         statistical_outliers_count=statistical_outliers_count,
         rules_version=RULES_VERSION,
     )

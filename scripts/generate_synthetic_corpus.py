@@ -2,7 +2,7 @@
 
 Corpus Version: 2026.10.1
 Total Scenarios: 150
-  - 100 Benign scenarios (expected_attack=False)
+  - 100 Benign scenarios (expected_attack=False, including boundary & negative cases)
   - 20 Brute Force attacks (expected_attack=True, expected_rule="RULE_BRUTE_FORCE_AUTH")
   - 20 Port Scan attacks (expected_attack=True, expected_rule="RULE_PORT_SCAN_REJECT")
   - 10 Ransomware attacks (expected_attack=True, expected_rule="RULE_RANSOMWARE_INDICATOR")
@@ -17,25 +17,27 @@ from typing import Any
 
 CORPUS_VERSION: str = "2026.10.1"
 BASE_TIMESTAMP = datetime(2026, 10, 25, 12, 0, 0, tzinfo=UTC)
+CANONICAL_GENERATION_TIMESTAMP = "2026-10-25T12:00:00+00:00"
 
 
-def generate_corpus() -> dict[str, Any]:
+def generate_corpus(generation_time: str | None = None) -> dict[str, Any]:
+    """Builds 150 labeled synthetic scenarios with strict byte-level reproducibility."""
     scenarios: list[dict[str, Any]] = []
 
-    # ---------------------------------------------------------
-    # 1. 100 Benign Scenarios
-    # ---------------------------------------------------------
     benign_users = ["alice", "bob", "charlie", "david", "emma", "frank", "grace", "heidi"]
     benign_ips = [f"192.168.1.{i}" for i in range(10, 30)]
 
+    # ---------------------------------------------------------
+    # 1. 100 Benign Scenarios (including exact boundary cases)
+    # ---------------------------------------------------------
     for idx in range(100):
         scenario_id = f"scenario-benign-{idx + 1:03d}"
         user = benign_users[idx % len(benign_users)]
         src_ip = benign_ips[idx % len(benign_ips)]
         events: list[dict[str, Any]] = []
 
-        if idx < 25:
-            # Web browsing traffic
+        if idx < 20:
+            # Normal web application traffic
             desc = f"Normal web application navigation by {user}"
             for step in range(3):
                 events.append({
@@ -48,7 +50,7 @@ def generate_corpus() -> dict[str, Any]:
                     "destination_port": 443 if step % 2 == 0 else 80,
                     "details": f"GET /app/dashboard/view_{step} HTTP/1.1 200 OK",
                 })
-        elif idx < 50:
+        elif idx < 40:
             # Internal service-to-service communication
             desc = f"Internal microservice RPC calls from {src_ip}"
             for step in range(4):
@@ -62,9 +64,9 @@ def generate_corpus() -> dict[str, Any]:
                     "destination_port": 5432 if step == 0 else 8080,
                     "details": f"Internal query customer_record_{step}",
                 })
-        elif idx < 70:
-            # Low-volume auth: 1 success or 1-3 failed attempts (well below the 5-failure threshold)
-            fail_count = (idx % 3) + 1  # 1, 2, or 3 attempts
+        elif idx < 55:
+            # Low-volume auth: 1 to 3 failed attempts (well below threshold)
+            fail_count = (idx % 3) + 1  # 1, 2, or 3
             desc = f"User {user} mistyping password ({fail_count} failed attempts, below brute force threshold)"
             for step in range(fail_count):
                 events.append({
@@ -77,7 +79,6 @@ def generate_corpus() -> dict[str, Any]:
                     "destination_port": 22,
                     "details": f"Authentication failure attempt {step + 1} for {user}",
                 })
-            # Followed by a successful login
             events.append({
                 "event_id": f"{scenario_id}-ev-{fail_count}",
                 "timestamp": (BASE_TIMESTAMP + timedelta(seconds=idx * 60 + fail_count * 10 + 5)).isoformat(),
@@ -88,9 +89,23 @@ def generate_corpus() -> dict[str, Any]:
                 "destination_port": 22,
                 "details": f"Authentication success for {user}",
             })
-        elif idx < 85:
-            # Routine administrative maintenance
-            desc = f"Admin maintenance task executed by {user}"
+        elif idx < 65:
+            # HARD BORDERLINE: Exactly 4 failed logins (Rule threshold requires >= 5)
+            desc = f"Borderline authentication failure for {user}: exactly 4 failures (boundary test, threshold is 5)"
+            for step in range(4):
+                events.append({
+                    "event_id": f"{scenario_id}-ev-{step}",
+                    "timestamp": (BASE_TIMESTAMP + timedelta(seconds=idx * 60 + step * 5)).isoformat(),
+                    "event_type": "authentication",
+                    "source_ip": src_ip,
+                    "user": user,
+                    "status": "failed",
+                    "destination_port": 22,
+                    "details": f"Failed authentication attempt {step + 1} of 4",
+                })
+        elif idx < 75:
+            # Routine admin maintenance and benign bulk file operations
+            desc = f"Admin maintenance and routine logrotate file archival by {user}"
             events.append({
                 "event_id": f"{scenario_id}-ev-0",
                 "timestamp": (BASE_TIMESTAMP + timedelta(seconds=idx * 60)).isoformat(),
@@ -99,7 +114,7 @@ def generate_corpus() -> dict[str, Any]:
                 "user": user,
                 "status": "success",
                 "destination_port": 22,
-                "details": "SSH session started; sudo systemctl restart nginx",
+                "details": "SSH session started; cron logrotate run",
             })
             events.append({
                 "event_id": f"{scenario_id}-ev-1",
@@ -109,10 +124,10 @@ def generate_corpus() -> dict[str, Any]:
                 "user": user,
                 "status": "success",
                 "destination_port": None,
-                "details": "Configuration file /etc/nginx/nginx.conf modified and backed up",
+                "details": "Bulk gzip compression of 500 system logs to /var/log/archive.tar.gz",
             })
-        else:
-            # Low-volume network probe: 2-4 distinct ports probed (well below 10 unique ports threshold)
+        elif idx < 85:
+            # Low-volume network probe: 2-4 distinct ports
             probe_ports = [80, 443, 8080, 8443][: ((idx % 3) + 2)]
             desc = f"Routine network monitoring probe on {len(probe_ports)} ports (below scan threshold)"
             for step, port in enumerate(probe_ports):
@@ -125,6 +140,35 @@ def generate_corpus() -> dict[str, Any]:
                     "status": "rejected",
                     "destination_port": port,
                     "details": f"TCP SYN to port {port} rejected",
+                })
+        elif idx < 95:
+            # HARD BORDERLINE: Exactly 9 distinct ports probed (Rule threshold requires >= 10)
+            boundary_ports = [21, 22, 23, 25, 53, 80, 110, 143, 443]  # exactly 9
+            desc = f"Borderline probe from {src_ip}: exactly 9 unique ports probed (boundary test, threshold is 10)"
+            for step, port in enumerate(boundary_ports):
+                events.append({
+                    "event_id": f"{scenario_id}-ev-{step}",
+                    "timestamp": (BASE_TIMESTAMP + timedelta(seconds=idx * 60 + step * 3)).isoformat(),
+                    "event_type": "network",
+                    "source_ip": src_ip,
+                    "user": "unknown",
+                    "status": "rejected",
+                    "destination_port": port,
+                    "details": f"Probing port {port}",
+                })
+        else:
+            # Untimed / Malformed edge cases: 6 failures without valid timestamps (cannot satisfy sliding window)
+            desc = f"Untimed authentication failures from {src_ip}: timestamps missing/malformed (window verification test)"
+            for step in range(6):
+                events.append({
+                    "event_id": f"{scenario_id}-ev-{step}",
+                    "timestamp": None if step % 2 == 0 else "",
+                    "event_type": "authentication",
+                    "source_ip": src_ip,
+                    "user": user,
+                    "status": "failed",
+                    "destination_port": 22,
+                    "details": f"Untimed failed attempt {step + 1}",
                 })
 
         scenarios.append({
@@ -244,9 +288,11 @@ def generate_corpus() -> dict[str, Any]:
             "events": events,
         })
 
+    gen_ts = generation_time or CANONICAL_GENERATION_TIMESTAMP
+
     return {
         "corpus_version": CORPUS_VERSION,
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": gen_ts,
         "total_scenarios": len(scenarios),
         "breakdown": {
             "benign": 100,
