@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 from typing import Any
@@ -37,6 +38,17 @@ def _escape_dot_label(val: str) -> str:
     s = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", s)
 
     return s
+
+
+def _bound_entity(prefix: str, val: Any) -> str:
+    """Safely bounds entity strings to 128 characters preserving uniqueness via sha256 suffix."""
+    s = str(val).strip() if val is not None else ""
+    full_str = f"{prefix}:{s}"
+    if len(full_str) <= 128:
+        return full_str
+    digest = hashlib.sha256(s.encode("utf-8")).hexdigest()[:8]
+    truncated = full_str[:119]
+    return f"{truncated}_{digest}"
 
 
 class CorrelationGraphResult(BaseModel):
@@ -126,10 +138,14 @@ def build_correlation_graph(
         dest_port = parse_valid_port(e.get("destination_port"))
 
         if src_ip and user:
-            if not _safe_add_edge(f"IP:{src_ip}", f"User:{user}", "login"):
+            u_node = _bound_entity("IP", src_ip)
+            v_node = _bound_entity("User", user)
+            if not _safe_add_edge(u_node, v_node, "login"):
                 break
         if src_ip and dest_port is not None:
-            if not _safe_add_edge(f"IP:{src_ip}", f"Port:{dest_port}", "probe"):
+            u_node = _bound_entity("IP", src_ip)
+            v_node = _bound_entity("Port", dest_port)
+            if not _safe_add_edge(u_node, v_node, "probe"):
                 break
 
     is_truncated = event_limit_reached or node_limit_reached or edge_limit_reached
@@ -152,7 +168,11 @@ def build_correlation_graph(
     deg = nx.degree_centrality(g)
     try:
         bet = nx.betweenness_centrality(g)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Betweenness centrality calculation failed; defaulting to 0.0: %s",
+            type(exc).__name__,
+        )
         bet = {n: 0.0 for n in g.nodes}
 
     scores = {n: (deg.get(n, 0.0) * 0.6) + (bet.get(n, 0.0) * 0.4) for n in g.nodes}

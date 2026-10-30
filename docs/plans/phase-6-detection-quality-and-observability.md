@@ -71,7 +71,7 @@ Phase 6 elevates Zylar from an exploratory prototype into a production-grade, me
 - **Adapters:** `agents/risk_agent.py`, `agents/report_agent.py`
 - **Tests:** `tests/unit/test_risk_scoring_engine.py`, `tests/unit/test_risk_scoring.py`
 - **Key Capabilities:**
-  - Evaluates five normalized risk factors: attack severity ($0.35$), event volume ($0.15$), historical recurrence ($0.20$), graph centrality ($0.15$), and port criticality ($0.15$).
+  - Evaluates five normalized risk factors: attack severity ($0.25$), event volume ($0.25$), historical recurrence ($0.20$), graph centrality ($0.15$), and port criticality ($0.15$).
   - Policy configuration (`RiskPolicy`) validates weight normalization ($\sum w_i = 1.0$), non-negative bounds, and strictly ascending category boundaries:
     $$\text{Low} < \text{Medium} < \text{High} < \text{Critical}$$
   - Returns `RiskScoreResult` with integer score [0–100], bounded category, active policy version, and immutable `MappingProxyType` breakdown mappings.
@@ -86,7 +86,8 @@ Phase 6 elevates Zylar from an exploratory prototype into a production-grade, me
   - Implements sliding time-window feature aggregation:
     - `RULE_BRUTE_FORCE_AUTH`: $\ge 5$ failed authentications within 120 seconds.
     - `RULE_PORT_SCAN_REJECT`: $\ge 10$ unique destination ports contacted within 60 seconds with $\ge 80\%$ rejection rate.
-    - `RULE_RANSOMWARE_INDICATOR`: $\ge 20$ file modifications or encryption events within 300 seconds.
+    - `RULE_RANSOMWARE_INDICATOR`: file extension (.locked, .encrypted) or ransomware keywords on individual events.
+    - `RULE_RANSOMWARE_MASS_ENCRYPTION`: $\ge 20$ file encryption/modification events per entity within sliding window (300 seconds).
   - Enforces deterministic tie-breaking and sorting by timestamp and event ID.
 
 ### Task 3: Typed Correlation Graph Service & Safe Serialization
@@ -94,7 +95,7 @@ Phase 6 elevates Zylar from an exploratory prototype into a production-grade, me
 - **API Endpoint:** `GET /api/threat-graph` in `api/main.py`
 - **Tests:** `tests/unit/test_correlation_service.py`
 - **Key Capabilities:**
-  - Bounded NetworkX entity graph construction enforcing strict limits: `max_events=500`, `max_nodes=100`, `max_edges=150`.
+  - Bounded NetworkX entity graph construction enforcing strict limits: `max_events=500`, `max_nodes=250`, `max_edges=600`.
   - Calculates degree and betweenness centrality to identify top network hubs and pivot entities.
   - Safe Graphviz DOT output encoding (`_escape_dot_label`):
     - Escapes backslashes (`\\`), double quotes (`\"`), newlines (`\n`), carriage returns (`\r`), and tabs (`\t`).

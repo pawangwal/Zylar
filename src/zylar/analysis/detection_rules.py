@@ -162,8 +162,9 @@ def evaluate_detection_rules(
 
     rule_matches: list[RuleMatch] = []
 
-    # 1. Ransomware Rule
-    rw_events: list[dict[str, Any]] = []
+    # 1. Ransomware Detection:
+    # 1a. RULE_RANSOMWARE_INDICATOR: File extension / keyword indicators on individual events
+    rw_indicator_events: list[dict[str, Any]] = []
     for e in events:
         if not isinstance(e, dict):
             continue
@@ -175,19 +176,59 @@ def evaluate_detection_rules(
             or ".locked" in details
             or ".encrypted" in details
         ):
-            rw_events.append(e)
+            rw_indicator_events.append(e)
 
-    if rw_events:
-        matched_ids = [str(e["event_id"]) for e in rw_events if e.get("event_id")]
+    if rw_indicator_events:
+        matched_ids = [str(e["event_id"]) for e in rw_indicator_events if e.get("event_id")]
         rule_matches.append(
             RuleMatch(
                 rule_id="RULE_RANSOMWARE_INDICATOR",
-                rule_name="Mass File Encryption/Ransomware Indicators",
-                confidence=0.95,
+                rule_name="Ransomware File Extension/Keyword Indicator",
+                confidence=0.90,
                 matched_event_ids=tuple(matched_ids),
-                indicators={"count": len(rw_events)},
+                indicators={"count": len(rw_indicator_events)},
             )
         )
+
+    # 1b. RULE_RANSOMWARE_MASS_ENCRYPTION: >= 20 file encryption events for same entity within sliding window
+    mass_encryptions: dict[tuple[str, str], list[tuple[datetime.datetime | None, dict[str, Any]]]] = (
+        defaultdict(list)
+    )
+    for e in events:
+        if not isinstance(e, dict):
+            continue
+        event_type = str(e.get("event_type", "")).lower()
+        details = str(e.get("details", "")).lower()
+        is_encryption = (
+            event_type in ("file_encryption", "file_modification", "file_encrypt", "ransomware")
+            or "encrypt" in event_type
+            or "encrypt" in details
+            or ".locked" in details
+            or ".encrypted" in details
+        )
+        if is_encryption:
+            src_ip = str(e.get("source_ip") or e.get("host") or "unknown").strip()
+            user = str(e.get("user") or e.get("username") or "unknown").strip()
+            ts = _parse_timestamp(e.get("timestamp"))
+            mass_encryptions[(src_ip, user)].append((ts, e))
+
+    for (ip, user), attempts in mass_encryptions.items():
+        matched_window = _find_windowed_events(attempts, window_seconds=window_seconds, min_count=20)
+        if matched_window:
+            matched_ids = [str(e["event_id"]) for e in matched_window if e.get("event_id")]
+            rule_matches.append(
+                RuleMatch(
+                    rule_id="RULE_RANSOMWARE_MASS_ENCRYPTION",
+                    rule_name="Mass File Encryption Attack",
+                    confidence=0.98,
+                    matched_event_ids=tuple(matched_ids),
+                    indicators={
+                        "source_ip": ip,
+                        "user": user,
+                        "encryption_count": len(matched_window),
+                    },
+                )
+            )
 
     # 2. Brute Force Rule (grouped by (source_ip, user) within sliding window)
     failed_logins: dict[tuple[str, str], list[tuple[datetime.datetime | None, dict[str, Any]]]] = (
@@ -262,7 +303,7 @@ def evaluate_detection_rules(
 
     # Determine classification precedence hierarchy
     rule_ids = {rm.rule_id for rm in rule_matches}
-    if "RULE_RANSOMWARE_INDICATOR" in rule_ids:
+    if "RULE_RANSOMWARE_MASS_ENCRYPTION" in rule_ids or "RULE_RANSOMWARE_INDICATOR" in rule_ids:
         classification = "Ransomware"
     elif "RULE_BRUTE_FORCE_AUTH" in rule_ids:
         classification = "Brute Force"
