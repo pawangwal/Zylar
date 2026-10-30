@@ -47,3 +47,9 @@ class StaleLeaseError(PersistenceError):
     """Raised when a worker attempts to mutate or advance a checkpoint with a stale lease or generation mismatch."""
 
     pass
+
+
+class FencedLeaseError(StaleLeaseError):
+    """Raised when a worker's lease has expired or been fenced off by a higher generation token."""
+
+    pass

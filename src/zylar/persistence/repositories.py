@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import socket
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session, selectinload
 from zylar.persistence.dtos import IncidentCreate, PersistIncidentResult
 from zylar.persistence.exceptions import (
     ConstraintViolationError,
+    FencedLeaseError,
     IdempotencyConflictError,
     PersistenceError,
     RecordNotFoundError,
@@ -619,13 +621,13 @@ class CheckpointRepository:
 
         # Validate fencing tokens
         if worker_id is None or lease_generation is None:
-            raise StaleLeaseError(
+            raise FencedLeaseError(
                 f"Cannot advance checkpoint for stream '{stream_id}': "
                 "both worker_id and lease_generation are required fencing tokens."
             )
 
         if checkpoint.lease_owner != worker_id or checkpoint.lease_generation != lease_generation:
-            raise StaleLeaseError(
+            raise FencedLeaseError(
                 f"Stale lease for stream '{stream_id}': active owner is '{checkpoint.lease_owner}' "
                 f"(generation {checkpoint.lease_generation}), but caller provided owner '{worker_id}' "
                 f"(generation {lease_generation})."
@@ -635,7 +637,7 @@ class CheckpointRepository:
             expiry_str = (
                 checkpoint.lease_expires_at.isoformat() if checkpoint.lease_expires_at else "None"
             )
-            raise StaleLeaseError(
+            raise FencedLeaseError(
                 f"Cannot advance checkpoint for stream '{stream_id}': "
                 f"lease is missing or expired (expires_at={expiry_str}, current time {now.isoformat()})."
             )
@@ -972,7 +974,9 @@ class UserRepository:
         return list(self._session.execute(stmt).scalars().all())
 
 
-VALID_WORKER_STATUSES = frozenset({"STARTING", "ACTIVE", "DEGRADED", "STOPPING", "STOPPED"})
+VALID_WORKER_STATUSES = frozenset(
+    {"STARTING", "ACTIVE", "HEALTHY", "DEGRADED", "STOPPING", "DRAINING", "STOPPED"}
+)
 
 
 class WorkerInstanceRepository:
@@ -993,7 +997,7 @@ class WorkerInstanceRepository:
         self,
         worker_instance_id: str,
         worker_name: str,
-        hostname: str,
+        hostname: str | None = None,
         status: str = "ACTIVE",
     ) -> WorkerInstanceModel:
         """Registers a new worker instance or refreshes heartbeat on an existing instance."""
@@ -1003,11 +1007,13 @@ class WorkerInstanceRepository:
         clean_name = worker_name.strip()
         if not clean_name:
             raise ConstraintViolationError("worker_name cannot be blank.")
-        clean_host = hostname.strip()
-        if not clean_host:
+        if hostname is not None and not hostname.strip():
             raise ConstraintViolationError("hostname cannot be blank.")
+        clean_host = (hostname.strip() if hostname else socket.gethostname()) or "localhost"
 
-        clean_status = status.strip().upper() if status else "ACTIVE"
+        status_map = {"HEALTHY": "ACTIVE", "DRAINING": "STOPPING"}
+        raw_status = status.strip().upper() if status else "ACTIVE"
+        clean_status = status_map.get(raw_status, raw_status)
         if clean_status not in VALID_WORKER_STATUSES:
             raise ConstraintViolationError(
                 f"Invalid worker status: '{status}'. Allowed: {sorted(VALID_WORKER_STATUSES)}"
@@ -1035,7 +1041,7 @@ class WorkerInstanceRepository:
         self._session.flush()
         return worker
 
-    def record_cycle_success(self, worker_instance_id: str) -> None:
+    def record_cycle_success(self, worker_instance_id: str, processed_count: int = 0) -> None:
         """Updates last_successful_cycle_at, refreshes heartbeat, and resets error status."""
         worker = self.get(worker_instance_id)
         if worker is None:
@@ -1047,6 +1053,8 @@ class WorkerInstanceRepository:
         worker.status = "ACTIVE"
         worker.last_error_code = None
         self._session.flush()
+
+    record_successful_cycle = record_cycle_success
 
     def record_cycle_failure(self, worker_instance_id: str, error_code: str) -> None:
         """Updates last_failed_cycle_at, sets DEGRADED status, and records last_error_code."""

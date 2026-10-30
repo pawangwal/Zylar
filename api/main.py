@@ -61,11 +61,7 @@ def check_for_threats() -> None:
     if worker is not None:
         worker.run_poll_cycle()
     else:
-        fallback_worker = CheckpointedIngestionWorker(
-            stream_id="elasticsearch-soc-events",
-            settings=settings,
-        )
-        fallback_worker.run_poll_cycle()
+        logger.info("Autonomous ingestion skipped: scheduler/worker disabled in API process.")
 
 
 @asynccontextmanager
@@ -75,21 +71,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.db_manager = db_manager
     logger.info("Shared PostgreSQL DatabaseManager initialized on app.state.")
 
-    worker = CheckpointedIngestionWorker(
-        stream_id="elasticsearch-soc-events",
-        settings=settings,
-        session_factory=db_manager.session_factory,
-    )
-    app.state.ingestion_worker = worker
-
     scheduler: BackgroundScheduler | None = None
     if settings.enable_ingestion_scheduler:
+        worker = CheckpointedIngestionWorker(
+            stream_id="elasticsearch-soc-events",
+            settings=settings,
+            session_factory=db_manager.session_factory,
+        )
+        app.state.ingestion_worker = worker
+
         scheduler = BackgroundScheduler(timezone="UTC")
         scheduler.add_job(worker.run_poll_cycle, "interval", seconds=30, id="threat_scan")
         scheduler.start()
         app.state.scheduler = scheduler
         logger.info("Autonomous checkpointed ingestion scheduler started in lifespan context.")
     else:
+        app.state.ingestion_worker = None
         app.state.scheduler = None
         logger.info("Ingestion scheduler disabled in this process (API-only mode).")
 
@@ -362,6 +359,39 @@ async def get_ingestion_status(
             cp = uow.checkpoints.get("elasticsearch-soc-events")
             lag = uow.checkpoints.get_checkpoint_lag_seconds("elasticsearch-soc-events")
             dead_letters = uow.checkpoints.get_dead_letter_count("elasticsearch-soc-events")
+            active_workers: list[dict[str, Any]] = []
+            if uow.workers is not None:
+                worker_models = uow.workers.get_active_workers(stale_threshold_seconds=60.0)
+                now_utc = datetime.now(UTC)
+                for w in worker_models:
+                    hb_lag = (
+                        (now_utc - w.last_heartbeat_at).total_seconds()
+                        if w.last_heartbeat_at
+                        else None
+                    )
+                    active_workers.append(
+                        {
+                            "worker_instance_id": w.worker_instance_id,
+                            "worker_name": w.worker_name,
+                            "hostname": w.hostname,
+                            "status": w.status,
+                            "last_heartbeat_at": (
+                                w.last_heartbeat_at.isoformat() if w.last_heartbeat_at else None
+                            ),
+                            "heartbeat_lag_seconds": hb_lag,
+                            "last_successful_cycle_at": (
+                                w.last_successful_cycle_at.isoformat()
+                                if w.last_successful_cycle_at
+                                else None
+                            ),
+                            "last_failed_cycle_at": (
+                                w.last_failed_cycle_at.isoformat()
+                                if w.last_failed_cycle_at
+                                else None
+                            ),
+                            "last_error_code": w.last_error_code,
+                        }
+                    )
 
         sched = getattr(request.app.state, "scheduler", None)
         sched_running = sched is not None and getattr(sched, "running", False)
@@ -385,7 +415,12 @@ async def get_ingestion_status(
                 "dead_letters_count": 0,
                 "retry_count": 0,
                 "last_error": None,
+                "lease_owner": None,
+                "lease_generation": None,
+                "lease_expires_at": None,
                 "scheduler": scheduler_info,
+                "active_workers": active_workers,
+                "workers_count": len(active_workers),
             }
 
         return {
@@ -399,7 +434,14 @@ async def get_ingestion_status(
             "dead_letters_count": dead_letters,
             "retry_count": cp.retry_count,
             "last_error": sanitize_audit_details(cp.last_error) if cp.last_error else None,
+            "lease_owner": cp.lease_owner,
+            "lease_generation": cp.lease_generation,
+            "lease_expires_at": (
+                cp.lease_expires_at.isoformat() if cp.lease_expires_at else None
+            ),
             "scheduler": scheduler_info,
+            "active_workers": active_workers,
+            "workers_count": len(active_workers),
         }
 
     return await anyio.to_thread.run_sync(query_status)

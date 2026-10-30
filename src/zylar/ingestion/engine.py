@@ -543,8 +543,8 @@ class CheckpointedIngestionWorker:
             checkpoint_id=last_id,
         )
 
-    def run_poll_cycle(self) -> None:
-        """Top-level invocation designed for BackgroundScheduler jobs."""
+    def run_poll_cycle(self) -> IngestionBatchResult:
+        """Top-level invocation designed for standalone runners and BackgroundScheduler jobs."""
         self._last_poll_cycle = datetime.now(UTC)
         try:
             res = self.poll_and_process_batch()
@@ -562,7 +562,15 @@ class CheckpointedIngestionWorker:
                     res.events_processed,
                     res.dead_letters_count,
                 )
+            return res
         except Exception as exc:
             self._last_failed_cycle = datetime.now(UTC)
             self._last_error = str(exc)
             logger.error("Unhandled exception in ingestion worker cycle: %s", exc)
+            return IngestionBatchResult(
+                stream_id=self.stream_id,
+                status="PERMANENT_FAILURE",
+                events_read=0,
+                events_processed=0,
+                error=str(exc),
+            )

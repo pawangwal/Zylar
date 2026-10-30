@@ -108,6 +108,16 @@ class Settings(BaseSettings):
         ge=0,
         description="SQLAlchemy connection max overflow for Worker process.",
     )
+    worker_name: str = Field(
+        default="worker-1",
+        min_length=1,
+        max_length=128,
+        description="Logical name for this worker instance.",
+    )
+    worker_metrics_port: PositiveInt = Field(
+        default=9102,
+        description="Port for worker process Prometheus metrics HTTP server.",
+    )
     max_workflow_concurrency: PositiveInt = Field(
         default=5,
         description="Process-local maximum concurrent LangGraph workflow runs in API process.",

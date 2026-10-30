@@ -53,8 +53,17 @@ class DatabaseManager:
     credential sanitization, and deterministic engine disposal.
     """
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        pool_size: int | None = None,
+        max_overflow: int | None = None,
+    ) -> None:
         self._settings = settings or get_settings()
+        self._pool_size = pool_size if pool_size is not None else self._settings.db_pool_size
+        self._max_overflow = (
+            max_overflow if max_overflow is not None else self._settings.db_max_overflow
+        )
         self._engine: Engine | None = None
         self._session_factory: sessionmaker[Session] | None = None
         self._lock = threading.RLock()
@@ -101,8 +110,8 @@ class DatabaseManager:
         try:
             return create_engine(
                 raw_url,
-                pool_size=self._settings.db_pool_size,
-                max_overflow=self._settings.db_max_overflow,
+                pool_size=self._pool_size,
+                max_overflow=self._max_overflow,
                 pool_timeout=self._settings.db_pool_timeout_seconds,
                 pool_recycle=self._settings.db_pool_recycle_seconds,
                 pool_pre_ping=self._settings.db_pool_pre_ping,
