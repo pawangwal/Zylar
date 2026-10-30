@@ -132,6 +132,8 @@ def test_production_accepts_valid_secrets_with_url_encoding():
         auth_signing_key=SYNTHETIC_KEY_32,
         bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
         database_url="postgresql+psycopg://synthetic_app:synth%23pass%2199@synthetic.internal:5432/zylar_test",
+        elasticsearch_url="https://synthetic.internal:9200",
+        elasticsearch_api_key="synthetic-valid-key",
     )
     assert settings.environment == "production"
     assert settings.auth_signing_key.get_secret_value() == SYNTHETIC_KEY_32
@@ -211,6 +213,7 @@ def test_production_accepts_valid_elasticsearch_password():
         auth_signing_key=SYNTHETIC_KEY_32,
         bootstrap_admin_password=SYNTHETIC_ADMIN_PWD,
         database_url=SYNTHETIC_DB_URL,
+        elasticsearch_url="https://synthetic.internal:9200",
         elasticsearch_password="a-very-strong-production-pass",
     )
     assert settings.elasticsearch_password.get_secret_value() == "a-very-strong-production-pass"
