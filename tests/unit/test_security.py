@@ -44,7 +44,7 @@ def test_user_principal_immutability_and_validation():
 
     # Frozen model cannot be mutated
     with pytest.raises(ValidationError):
-        principal.subject = "bob"  # type: ignore[misc]
+        principal.subject = "bob"
 
     # Invalid role rejected
     with pytest.raises(ValidationError):
@@ -123,30 +123,33 @@ def test_user_store_bootstrap_and_authentication():
 
 
 def test_user_store_user_provisioning_lifecycle():
+    import uuid
+
     store = UserStore()
+    username = f"analyst_bob_{uuid.uuid4().hex[:8]}"
 
     # Create new analyst user
     analyst_record = store.create_user(
-        username="analyst_bob",
+        username=username,
         password="BobSecurePassword2026!",
         role=Role.ANALYST,
     )
-    assert analyst_record.username == "analyst_bob"
+    assert analyst_record.username == username
     assert analyst_record.role == Role.ANALYST
 
     # Authenticate newly created user
-    bob_principal = store.authenticate("analyst_bob", "BobSecurePassword2026!")
+    bob_principal = store.authenticate(username, "BobSecurePassword2026!")
     assert bob_principal is not None
     assert bob_principal.role == Role.ANALYST
 
     # Cannot create duplicate username
     with pytest.raises(ValueError) as exc:
-        store.create_user("analyst_bob", "AnotherPass", Role.ANALYST)
+        store.create_user(username, "AnotherPass", Role.ANALYST)
     assert "already exists" in str(exc.value)
 
     # Disabled user cannot authenticate
-    store.disable_user("analyst_bob")
-    assert store.authenticate("analyst_bob", "BobSecurePassword2026!") is None
+    store.disable_user(username)
+    assert store.authenticate(username, "BobSecurePassword2026!") is None
 
 
 def test_require_roles_dependency():
@@ -336,3 +339,95 @@ def test_login_throttler_capacity_bounding():
 
     # Tracked keys must be bounded around max_tracked_keys
     assert len(throttler._failures) <= 15
+
+
+def test_user_store_with_database_session_factory():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from zylar.core.security import Role, UserStore, reset_user_store
+    from zylar.core.settings import get_settings
+    from zylar.persistence.models import Base
+
+    settings = get_settings()
+    reset_user_store()
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine, tables=[Base.metadata.tables["users"]])
+    session_factory = sessionmaker(bind=engine)
+
+    store = UserStore(session_factory=session_factory)
+
+    # Admin is automatically bootstrapped into DB using configured settings
+    admin = store.authenticate(
+        settings.bootstrap_admin_username,
+        settings.bootstrap_admin_password.get_secret_value(),
+    )
+    assert admin is not None
+    assert admin.role == Role.ADMIN
+
+    # Create new analyst user via store backed by DB
+    user = store.create_user("analyst_durable", "pass123456", Role.ANALYST)
+    assert user.username == "analyst_durable"
+
+    # Authenticate via DB
+    principal = store.authenticate("analyst_durable", "pass123456")
+    assert principal is not None
+    assert principal.role == Role.ANALYST
+
+    # Disable user via DB
+    store.disable_user("analyst_durable")
+    assert store.authenticate("analyst_durable", "pass123456") is None
+
+    # Duplicate username raises ValueError
+    with pytest.raises(ValueError):
+        store.create_user("analyst_durable", "anotherpass", Role.ANALYST)
+
+    Base.metadata.drop_all(engine, tables=[Base.metadata.tables["users"]])
+    engine.dispose()
+    reset_user_store()
+
+
+def test_user_store_production_fails_closed_without_database(monkeypatch: pytest.MonkeyPatch):
+    from unittest.mock import MagicMock
+
+    from sqlalchemy.exc import OperationalError
+
+    from zylar.core.security import UserStore, reset_user_store
+    from zylar.core.settings import get_settings
+    from zylar.persistence.database import reset_database_manager
+
+    reset_user_store()
+    reset_database_manager()
+    monkeypatch.setenv("ZYLAR_ENVIRONMENT", "production")
+    monkeypatch.setenv("ZYLAR_ELASTICSEARCH_URL", "https://synthetic.internal:9200")
+    monkeypatch.setenv("ZYLAR_ELASTICSEARCH_USERNAME", "elastic_admin")
+    monkeypatch.setenv("ZYLAR_ELASTICSEARCH_PASSWORD", "elastic_pass_123456")
+    get_settings.cache_clear()
+
+    # Case 1: get_database_manager fails during initialization
+    failing_db_manager = MagicMock(side_effect=RuntimeError("Cannot connect to DB cluster"))
+    monkeypatch.setattr("zylar.persistence.database.get_database_manager", failing_db_manager)
+
+    try:
+        with pytest.raises(RuntimeError) as exc_info:
+            UserStore()
+        assert "in-memory fallback is strictly forbidden" in str(exc_info.value)
+    finally:
+        reset_user_store()
+
+    # Case 2: session_factory raises OperationalError during admin bootstrap
+    mock_session = MagicMock()
+    mock_session.begin.side_effect = OperationalError("connection refused", params=None, orig=Exception("refused"))
+    mock_factory = MagicMock(return_value=mock_session)
+    mock_session.__enter__.return_value = mock_session
+
+    try:
+        with pytest.raises(RuntimeError) as exc_info:
+            UserStore(session_factory=mock_factory)
+        assert "Failed to bootstrap administrator account into PostgreSQL" in str(exc_info.value)
+    finally:
+        get_settings.cache_clear()
+        reset_user_store()
+        reset_database_manager()
+
+

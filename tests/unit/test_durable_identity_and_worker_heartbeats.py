@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from zylar.persistence.exceptions import ConstraintViolationError, RecordNotFoundError
-from zylar.persistence.models import UserModel, WorkerInstanceModel
+from zylar.persistence.models import Base
 from zylar.persistence.repositories import (
     UserRepository,
     WorkerInstanceRepository,
@@ -20,12 +20,14 @@ from zylar.persistence.unit_of_work import UnitOfWork
 def in_memory_db():
     engine = create_engine("sqlite:///:memory:")
     # Create only users and worker_instances tables for unit testing in SQLite
-    UserModel.__table__.create(engine)
-    WorkerInstanceModel.__table__.create(engine)
+    Base.metadata.create_all(
+        engine, tables=[Base.metadata.tables["users"], Base.metadata.tables["worker_instances"]]
+    )
     session_factory = sessionmaker(bind=engine)
     yield session_factory
-    WorkerInstanceModel.__table__.drop(engine)
-    UserModel.__table__.drop(engine)
+    Base.metadata.drop_all(
+        engine, tables=[Base.metadata.tables["worker_instances"], Base.metadata.tables["users"]]
+    )
     engine.dispose()
 
 

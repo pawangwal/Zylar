@@ -6,13 +6,16 @@ import threading
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session, sessionmaker
 
 from zylar.core.settings import get_settings
 
@@ -148,10 +151,31 @@ def decode_access_token(token: str) -> UserPrincipal:
 
 
 class UserStore:
-    """Trusted in-memory identity source with secure administrator bootstrap."""
+    """Trusted identity source backed by PostgreSQL with transactional advisory lock bootstrap."""
 
-    def __init__(self) -> None:
-        self._users: dict[str, UserRecord] = {}
+    def __init__(self, session_factory: sessionmaker[Session] | None = None) -> None:
+        settings = get_settings()
+        self._session_factory = session_factory
+        if self._session_factory is None:
+            if settings.environment == "production":
+                try:
+                    from zylar.persistence.database import get_database_manager
+
+                    self._session_factory = get_database_manager().session_factory
+                except Exception as exc:
+                    raise RuntimeError(
+                        "Production mode requires an authoritative PostgreSQL identity store; "
+                        "in-memory fallback is strictly forbidden."
+                    ) from exc
+            else:
+                try:
+                    from zylar.persistence.database import get_database_manager
+
+                    self._session_factory = get_database_manager().session_factory
+                except Exception:
+                    self._session_factory = None
+
+        self._in_memory_users: dict[str, UserRecord] = {}
         self._bootstrap_admin()
 
     def _bootstrap_admin(self) -> None:
@@ -159,14 +183,56 @@ class UserStore:
         admin_username = settings.bootstrap_admin_username
         admin_password = settings.bootstrap_admin_password.get_secret_value()
 
-        if admin_username not in self._users:
-            self._users[admin_username] = UserRecord(
+        if self._session_factory is not None:
+            try:
+                from sqlalchemy import text
+
+                from zylar.persistence.repositories import UserRepository
+
+                with self._session_factory() as session:
+                    with session.begin():
+                        if session.bind is not None and session.bind.dialect.name == "postgresql":
+                            session.execute(text("SELECT pg_advisory_xact_lock(742109)"))
+                        repo = UserRepository(session)
+                        existing = repo.get_by_username(admin_username)
+                        if existing is None:
+                            repo.create_user(
+                                username=admin_username,
+                                hashed_password=hash_password(admin_password),
+                                role="admin",
+                                disabled=False,
+                            )
+                            logger.info(
+                                "Bootstrapped initial administrator account into PostgreSQL: %s",
+                                admin_username,
+                            )
+            except Exception as exc:
+                if settings.environment == "production":
+                    raise RuntimeError(
+                        "Failed to bootstrap administrator account into PostgreSQL"
+                    ) from exc
+                logger.warning(
+                    "Database admin bootstrap failed, falling back to memory in development: %s", exc
+                )
+                self._session_factory = None
+                self._bootstrap_admin_in_memory(admin_username, admin_password)
+        else:
+            if settings.environment == "production":
+                raise RuntimeError(
+                    "Production mode requires an authoritative PostgreSQL identity store; "
+                    "in-memory fallback is strictly forbidden."
+                )
+            self._bootstrap_admin_in_memory(admin_username, admin_password)
+
+    def _bootstrap_admin_in_memory(self, admin_username: str, admin_password: str) -> None:
+        if admin_username not in self._in_memory_users:
+            self._in_memory_users[admin_username] = UserRecord(
                 username=admin_username,
                 hashed_password=hash_password(admin_password),
                 role=Role.ADMIN,
                 disabled=False,
             )
-            logger.info("Bootstrapped initial administrator account: %s", admin_username)
+            logger.info("Bootstrapped initial administrator account in memory: %s", admin_username)
 
     def authenticate(self, username: str, plain_password: str) -> UserPrincipal | None:
         """Verifies credentials against the trusted user store.
@@ -174,51 +240,119 @@ class UserStore:
         Clients cannot request or choose their role; the role is authoritatively
         assigned from the server-side identity store.
         """
-        user = self._users.get(username)
-        if not user or user.disabled:
-            return None
+        if self._session_factory is not None:
+            from zylar.persistence.repositories import UserRepository
 
-        if not verify_password(plain_password, user.hashed_password):
-            return None
-
-        return UserPrincipal(subject=user.username, role=user.role)
+            with self._session_factory() as session:
+                repo = UserRepository(session)
+                user = repo.get_by_username(username)
+                if not user or user.disabled:
+                    return None
+                if not verify_password(plain_password, user.hashed_password):
+                    return None
+                return UserPrincipal(subject=user.username, role=Role(user.role))
+        else:
+            user_rec = self._in_memory_users.get(username)
+            if not user_rec or user_rec.disabled:
+                return None
+            if not verify_password(plain_password, user_rec.hashed_password):
+                return None
+            return UserPrincipal(subject=user_rec.username, role=user_rec.role)
 
     def create_user(self, username: str, password: str, role: Role) -> UserRecord:
         """Provisions a new user in the identity store with a hashed credential."""
-        if not username or not username.strip():
+        clean_user = username.strip() if username else ""
+        if not clean_user:
             raise ValueError("Username must not be empty")
-        if username in self._users:
-            raise ValueError(f"User '{username}' already exists")
 
-        record = UserRecord(
-            username=username.strip(),
-            hashed_password=hash_password(password),
-            role=role,
-            disabled=False,
-        )
-        self._users[username] = record
-        return record
+        if self._session_factory is not None:
+            from zylar.persistence.exceptions import ConstraintViolationError
+            from zylar.persistence.repositories import UserRepository
+
+            hashed = hash_password(password)
+            with self._session_factory() as session:
+                with session.begin():
+                    repo = UserRepository(session)
+                    try:
+                        user = repo.create_user(
+                            username=clean_user,
+                            hashed_password=hashed,
+                            role=str(role).lower(),
+                            disabled=False,
+                        )
+                        return UserRecord(
+                            username=user.username,
+                            hashed_password=user.hashed_password,
+                            role=Role(user.role),
+                            disabled=user.disabled,
+                        )
+                    except ConstraintViolationError as exc:
+                        raise ValueError(str(exc)) from exc
+        else:
+            if clean_user in self._in_memory_users:
+                raise ValueError(f"User '{clean_user}' already exists")
+            record = UserRecord(
+                username=clean_user,
+                hashed_password=hash_password(password),
+                role=role,
+                disabled=False,
+            )
+            self._in_memory_users[clean_user] = record
+            return record
 
     def disable_user(self, username: str) -> None:
         """Disables a user account, preventing further authentications."""
-        if username in self._users:
-            self._users[username].disabled = True
+        if self._session_factory is not None:
+            from zylar.persistence.repositories import UserRepository
+
+            with self._session_factory() as session:
+                with session.begin():
+                    repo = UserRepository(session)
+                    user = repo.get_by_username(username)
+                    if user is not None:
+                        repo.update_disabled(user.id, True)
+        else:
+            if username in self._in_memory_users:
+                self._in_memory_users[username].disabled = True
 
     def get_user(self, username: str) -> UserRecord | None:
         """Retrieves a user record by username."""
-        return self._users.get(username)
+        if self._session_factory is not None:
+            from zylar.persistence.repositories import UserRepository
+
+            with self._session_factory() as session:
+                repo = UserRepository(session)
+                user = repo.get_by_username(username)
+                if user is None:
+                    return None
+                return UserRecord(
+                    username=user.username,
+                    hashed_password=user.hashed_password,
+                    role=Role(user.role),
+                    disabled=user.disabled,
+                )
+        else:
+            return self._in_memory_users.get(username)
 
 
 # Process-wide singleton user store
 _user_store: UserStore | None = None
 
 
-def get_user_store() -> UserStore:
+def get_user_store(session_factory: sessionmaker[Session] | None = None) -> UserStore:
     """Returns the process-wide trusted identity store."""
     global _user_store
     if _user_store is None:
-        _user_store = UserStore()
+        _user_store = UserStore(session_factory=session_factory)
+    elif session_factory is not None and _user_store._session_factory != session_factory:
+        _user_store = UserStore(session_factory=session_factory)
     return _user_store
+
+
+def reset_user_store() -> None:
+    """Resets the process-wide user store singleton (primarily for tests)."""
+    global _user_store
+    _user_store = None
 
 
 def get_current_user(
