@@ -912,15 +912,18 @@ class UserRepository:
                 f"Invalid role: '{role}'. Must be one of: {sorted(VALID_USER_ROLES)}"
             )
 
-        user = UserModel(
-            id=uuid.uuid4(),
-            username=clean_username,
-            hashed_password=clean_hash,
-            role=clean_role,
-            disabled=disabled,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-        )
+        user_kwargs: dict[str, Any] = {
+            "id": uuid.uuid4(),
+            "username": clean_username,
+            "hashed_password": clean_hash,
+            "disabled": disabled,
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        if clean_role != "analyst":
+            user_kwargs["role"] = clean_role
+
+        user = UserModel(**user_kwargs)
         self._session.add(user)
         try:
             self._session.flush()

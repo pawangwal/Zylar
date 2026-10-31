@@ -399,6 +399,8 @@ def test_user_store_production_fails_closed_without_database(monkeypatch: pytest
     reset_user_store()
     reset_database_manager()
     monkeypatch.setenv("ZYLAR_ENVIRONMENT", "production")
+    monkeypatch.setenv("ZYLAR_AUTH_SIGNING_KEY", "prod_signing_key_at_least_32_characters_long_for_test")
+    monkeypatch.setenv("ZYLAR_BOOTSTRAP_ADMIN_PASSWORD", "SuperSecureAdminPassword123!")
     monkeypatch.setenv("ZYLAR_ELASTICSEARCH_URL", "https://synthetic.internal:9200")
     monkeypatch.setenv("ZYLAR_ELASTICSEARCH_USERNAME", "elastic_admin")
     monkeypatch.setenv("ZYLAR_ELASTICSEARCH_PASSWORD", "elastic_pass_123456")

@@ -112,7 +112,14 @@ def test_check_connection_failure_raises_sanitized_connection_error():
 
 def test_global_manager_lifecycle():
     reset_database_manager()
-    mgr1 = get_database_manager()
+    settings = Settings(
+        database_url="postgresql+psycopg://zylar:mypassword123@127.0.0.1:5434/zylar_test",
+        api_db_pool_size=12,
+        api_db_max_overflow=8,
+    )
+    mgr1 = get_database_manager(settings)
+    assert mgr1._pool_size == 12
+    assert mgr1._max_overflow == 8
     mgr2 = get_database_manager()
     assert mgr1 is mgr2
 

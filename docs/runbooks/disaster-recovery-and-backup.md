@@ -152,3 +152,4 @@ WHERE stream_id = 'elasticsearch-soc-events';
 ```
 
 4. The autonomous worker runner (`zylar.ingestion.runner`) will acquire a fresh lease and resume streaming from the specified watermark, reconstructing threat intelligence while deduplication guarantees prevent duplicate incident generation.
+

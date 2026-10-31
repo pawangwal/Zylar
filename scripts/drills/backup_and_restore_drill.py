@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from psycopg import sql
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,6 +64,11 @@ def assert_restore_target_safety(source_db: str, target_db: str) -> None:
 
     if not tgt:
         raise ValueError("Safety violation: Restore target database name cannot be empty.")
+
+    if not re.match(r"^[a-zA-Z0-9_]+$", tgt):
+        raise ValueError(
+            f"Safety violation: Target database identifier '{tgt}' contains invalid characters."
+        )
 
     if tgt == src:
         raise ValueError(
@@ -127,13 +134,15 @@ def collect_table_counts(conn: psycopg.Connection[Any], tables: Sequence[str]) -
     counts: dict[str, int] = {}
     with conn.cursor() as cur:
         for t in tables:
-            try:
-                cur.execute(f"SELECT count(*) FROM public.{t}")  # noqa: S608
-                row = cur.fetchone()
-                counts[t] = int(row[0]) if row else 0
-            except psycopg.Error:
-                conn.rollback()
-                counts[t] = 0
+            cur.execute(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s",
+                (t,),
+            )
+            if cur.fetchone() is None:
+                continue
+            cur.execute(sql.SQL("SELECT count(*) FROM public.{}").format(sql.Identifier(t)))
+            row = cur.fetchone()
+            counts[t] = int(row[0]) if row and row[0] is not None else 0
     return counts
 
 
@@ -141,14 +150,20 @@ def collect_sequence_states(conn: psycopg.Connection[Any]) -> dict[str, dict[str
     """Queries sequence states from pg_sequences in public schema."""
     seqs: dict[str, dict[str, Any]] = {}
     with conn.cursor() as cur:
-        try:
-            cur.execute(
-                "SELECT sequencename, last_value, is_called FROM pg_sequences WHERE schemaname = 'public'"
-            )
-            for r in cur.fetchall():
-                seqs[str(r[0])] = {"last_value": int(r[1]) if r[1] is not None else 0, "is_called": bool(r[2])}
-        except psycopg.Error:
-            conn.rollback()
+        cur.execute(
+            "SELECT sequencename, last_value, start_value FROM pg_sequences WHERE schemaname = 'public'"
+        )
+        for r in cur.fetchall():
+            seq_name = str(r[0])
+            last_val_raw = r[1]
+            start_val_raw = r[2]
+            if last_val_raw is not None:
+                last_val = int(last_val_raw)
+                is_called = True
+            else:
+                last_val = int(start_val_raw) if start_val_raw is not None else 1
+                is_called = False
+            seqs[seq_name] = {"last_value": last_val, "is_called": is_called}
     return seqs
 
 
@@ -242,48 +257,52 @@ def run_drill(
 
     with psycopg.connect(conn_admin_url, autocommit=True) as conn:
         with conn.cursor() as cur:
-            cur.execute(f"DROP DATABASE IF EXISTS {target_db} (FORCE)")
-            cur.execute(f"CREATE DATABASE {target_db} OWNER zylar_migration")
+            cur.execute(sql.SQL("DROP DATABASE IF EXISTS {} (FORCE)").format(sql.Identifier(target_db)))
+            cur.execute(sql.SQL("CREATE DATABASE {} OWNER zylar_migration").format(sql.Identifier(target_db)))
     logger.info("Created clean target restore database: %s", target_db)
 
-    # 4. Restore into target database using pg_restore
-    pg_restore_cmd = shutil.which("pg_restore")
-    if not pg_restore_cmd:
-        logger.error("pg_restore executable not found in system PATH.")
-        return False
+    try:
+        # 4. Restore into target database using pg_restore
+        pg_restore_cmd = shutil.which("pg_restore")
+        if not pg_restore_cmd:
+            logger.error("pg_restore executable not found in system PATH.")
+            return False
 
-    target_conn_url = urllib.parse.urlunsplit(parsed_src._replace(path=f"/{target_db}"))
-    restore_args = [
-        pg_restore_cmd,
-        "-d",
-        target_conn_url.replace("postgresql+psycopg://", "postgresql://"),
-        "--no-owner",
-        str(dump_file),
-    ]
-    logger.info("Executing pg_restore into %s...", target_db)
-    res_rest = subprocess.run(restore_args, capture_output=True, text=True)
-    if res_rest.returncode not in (0, 1):  # pg_restore exit code 1 indicates non-fatal warnings
-        logger.error("pg_restore failed: %s", res_rest.stderr)
-        return False
+        target_conn_url = urllib.parse.urlunsplit(parsed_src._replace(path=f"/{target_db}"))
+        restore_args = [
+            pg_restore_cmd,
+            "-d",
+            target_conn_url.replace("postgresql+psycopg://", "postgresql://"),
+            "--no-owner",
+            str(dump_file),
+        ]
+        logger.info("Executing pg_restore into %s...", target_db)
+        res_rest = subprocess.run(restore_args, capture_output=True, text=True)
+        if res_rest.returncode != 0:
+            logger.error("pg_restore failed with exit code %d: %s", res_rest.returncode, res_rest.stderr)
+            return False
 
-    # 5. Verify semantic parity and execute data smoke tests
-    with psycopg.connect(target_conn_url.replace("postgresql+psycopg://", "postgresql://")) as target_conn:
-        target_counts = collect_table_counts(target_conn, CRITICAL_TABLES)
-        target_sequences = collect_sequence_states(target_conn)
-        logger.info("Target table row counts: %s", target_counts)
-        verify_database_parity(source_counts, target_counts, source_sequences, target_sequences)
-        logger.info("Semantic parity verification passed! Executing data smoke tests...")
-        run_data_smoke_test(target_conn)
-        logger.info("Data smoke test succeeded.")
+        # 5. Verify semantic parity and execute data smoke tests
+        with psycopg.connect(target_conn_url.replace("postgresql+psycopg://", "postgresql://")) as target_conn:
+            target_counts = collect_table_counts(target_conn, CRITICAL_TABLES)
+            target_sequences = collect_sequence_states(target_conn)
+            logger.info("Target table row counts: %s", target_counts)
+            verify_database_parity(source_counts, target_counts, source_sequences, target_sequences)
+            logger.info("Semantic parity verification passed! Executing data smoke tests...")
+            run_data_smoke_test(target_conn)
+            logger.info("Data smoke test succeeded.")
+    finally:
+        # 6. Teardown temporary restore database and remove dump archive
+        try:
+            with psycopg.connect(conn_admin_url, autocommit=True) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql.SQL("DROP DATABASE IF EXISTS {} (FORCE)").format(sql.Identifier(target_db)))
+            logger.info("Torn down verification target database %s.", target_db)
+        except Exception as exc:
+            logger.warning("Failed to teardown verification database '%s': %s", target_db, exc)
 
-    # 6. Teardown temporary restore database
-    with psycopg.connect(conn_admin_url, autocommit=True) as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"DROP DATABASE IF EXISTS {target_db} (FORCE)")
-    logger.info("Torn down verification target database %s.", target_db)
-
-    if dump_file.exists():
-        dump_file.unlink()
+        if dump_file.exists():
+            dump_file.unlink()
 
     logger.info("Disaster recovery verification drill completed successfully.")
     return True
@@ -296,13 +315,17 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    if not args.source_url:
-        logger.error("Missing required database connection URL (ZYLAR_DATABASE_URL).")
-        return 1
+    source_url = args.source_url
+    if not source_url:
+        if args.dry_run:
+            source_url = "postgresql://zylar_app:secret@127.0.0.1:5432/zylar_db"
+        else:
+            logger.error("Missing required database connection URL (ZYLAR_DATABASE_URL).")
+            return 1
 
     try:
         success = run_drill(
-            source_url=args.source_url,
+            source_url=source_url,
             target_db=args.target_db,
             dry_run=args.dry_run,
         )
@@ -314,3 +337,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

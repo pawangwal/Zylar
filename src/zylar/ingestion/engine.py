@@ -115,6 +115,15 @@ class CheckpointedIngestionWorker:
             "last_error": self._last_error,
         }
 
+    def get_watermark(self) -> tuple[datetime | None, str | None]:
+        """Returns the current committed checkpoint watermark (timestamp, last_id)."""
+        with UnitOfWork(self._session_factory) as uow:
+            assert uow.checkpoints is not None
+            cp = uow.checkpoints.get(self.stream_id)
+            if cp is None:
+                return None, None
+            return cp.last_processed_timestamp, cp.last_processed_id
+
     def _get_es_client(self) -> Elasticsearch:
         if self._es_client is None:
             self._es_client = Elasticsearch(

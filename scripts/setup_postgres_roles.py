@@ -22,8 +22,10 @@ import logging
 import os
 import sys
 import urllib.parse
+import uuid
 from pathlib import Path
 
+import bcrypt
 import psycopg
 
 logging.basicConfig(
@@ -31,7 +33,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("zylar.setup_roles")
-logger.setLevel(logging.INFO)
 
 SQL_FILE_PATH = Path(__file__).parent / "sql" / "00_init_roles.sql"
 VALID_ENVIRONMENTS = {"development", "testing", "staging", "production"}
@@ -207,6 +208,34 @@ def main() -> int:
             with conn.cursor() as cur:
                 logger.info("Executing role setup, ownership transfer, and privilege grants...")
                 cur.execute(prepared_sql)
+
+                # Provision initial administrator under administrative credentials if table exists
+                cur.execute(
+                    "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'"
+                )
+                if cur.fetchone():
+                    admin_username = os.environ.get("ZYLAR_BOOTSTRAP_ADMIN_USERNAME", "admin").strip()
+                    admin_password = os.environ.get(
+                        "ZYLAR_BOOTSTRAP_ADMIN_PASSWORD", "change-admin-password-in-production"
+                    ).strip()
+                    cur.execute(
+                        "SELECT 1 FROM public.users WHERE username = %s",
+                        (admin_username,),
+                    )
+                    if not cur.fetchone():
+                        salt = bcrypt.gensalt(rounds=12)
+                        hashed_pwd = bcrypt.hashpw(admin_password.encode("utf-8"), salt).decode("utf-8")
+                        cur.execute(
+                            """
+                            INSERT INTO public.users (id, username, hashed_password, role, disabled, created_at, updated_at)
+                            VALUES (%s, %s, %s, 'admin', false, NOW(), NOW())
+                            """,
+                            (str(uuid.uuid4()), admin_username, hashed_pwd),
+                        )
+                        logger.info(
+                            "Provisioned initial administrator account '%s' under administrative credentials.",
+                            admin_username,
+                        )
         logger.info(
             "Successfully provisioned roles (zylar_migration, zylar_app, zylar_read) and updated permissions."
         )

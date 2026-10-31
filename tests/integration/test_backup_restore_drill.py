@@ -62,3 +62,4 @@ def test_verify_database_parity_passes_on_exact_match():
         target_sequences=seqs,
     )
     assert result is True
+

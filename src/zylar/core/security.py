@@ -206,10 +206,18 @@ class UserStore:
                                 "Bootstrapped initial administrator account into PostgreSQL: %s",
                                 admin_username,
                             )
+                        else:
+                            logger.debug(
+                                "Authoritative administrator account '%s' verified in PostgreSQL.",
+                                admin_username,
+                            )
             except Exception as exc:
                 if settings.environment == "production":
                     raise RuntimeError(
-                        "Failed to bootstrap administrator account into PostgreSQL"
+                        f"Failed to bootstrap administrator account into PostgreSQL: {exc}. "
+                        "In production, runtime role 'zylar_app' is forbidden from granting 'admin' role; "
+                        "the administrator must be provisioned using administrative credentials via "
+                        "'python scripts/setup_postgres_roles.py'."
                     ) from exc
                 logger.warning(
                     "Database admin bootstrap failed, falling back to memory in development: %s", exc

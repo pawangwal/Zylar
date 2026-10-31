@@ -1,3 +1,20 @@
+# =============================================================================
+# Zylar Development & Portfolio Demonstration Docker Compose Environment
+# =============================================================================
+# NOTE: This compose file provides default development credentials for local
+# developer onboarding and demonstrations.
+#
+# FOR PRODUCTION DEPLOYMENTS:
+#   1. All passwords (POSTGRES_PASSWORD, ZYLAR_MIGRATION_DB_PASSWORD,
+#      ZYLAR_APP_DB_PASSWORD, ZYLAR_READ_DB_PASSWORD, ZYLAR_ELASTICSEARCH_PASSWORD,
+#      ZYLAR_JWT_SECRET) MUST be set as strong random secrets via secure environment
+#      variables or secrets managers. Defaults are rejected in production mode.
+#   2. Elasticsearch must be configured with HTTPS and TLS certificates enabled
+#      (xpack.security.http.ssl.enabled=true, ca_certs verified).
+#   3. See docs/runbooks/secret-rotation-and-credential-hygiene.md and
+#      docs/architecture/system-architecture.md for production hardening guidelines.
+# =============================================================================
+
 services:
   postgres:
     image: postgres:16.8-alpine
@@ -201,7 +218,7 @@ services:
     container_name: zylar-simulator
     profiles:
       - sim
-    command: ["python", "scripts/generate_logs.py"]
+    command: ["python", "-m", "log_generator.simulate_attacks"]
     environment:
       ZYLAR_ENVIRONMENT: ${ZYLAR_ENVIRONMENT:-development}
       ZYLAR_ELASTICSEARCH_URL: ${ZYLAR_ELASTICSEARCH_URL:-http://elasticsearch:9200}

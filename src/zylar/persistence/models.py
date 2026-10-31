@@ -344,7 +344,7 @@ class UserModel(Base):
     username: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="analyst", server_default=text("'analyst'")
+        String(32), nullable=False, server_default=text("'analyst'")
     )
     disabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")

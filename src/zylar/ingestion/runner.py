@@ -98,6 +98,7 @@ class IngestionRunner:
 
         self._is_draining: bool = False
         self._stop_event = threading.Event()
+        self._stop_heartbeat_event = threading.Event()
         self._heartbeat_thread: threading.Thread | None = None
         self._metrics_server: ThreadingHTTPServer | None = None
         self._metrics_thread: threading.Thread | None = None
@@ -123,7 +124,7 @@ class IngestionRunner:
         """Emits a single heartbeat to PostgreSQL worker_instances with independent session."""
         if self._session_factory is None:
             return
-        status = "DRAINING" if self._is_draining else "HEALTHY"
+        status = "STOPPING" if self._is_draining else "ACTIVE"
         try:
             with self._session_factory() as session:
                 with session.begin():
@@ -144,14 +145,15 @@ class IngestionRunner:
 
     def _heartbeat_loop(self) -> None:
         """Continuous background loop emitting periodic heartbeats."""
-        while not self._stop_event.is_set():
+        while not self._stop_heartbeat_event.is_set() and not self._stop_event.is_set():
             self._heartbeat_tick()
-            self._stop_event.wait(self._heartbeat_interval)
+            self._stop_heartbeat_event.wait(self._heartbeat_interval)
 
     def start_heartbeat(self) -> None:
         """Starts the dedicated background heartbeat thread."""
         with self._lock:
             if self._heartbeat_thread is None:
+                self._stop_heartbeat_event.clear()
                 self._heartbeat_thread = threading.Thread(
                     target=self._heartbeat_loop,
                     name=f"worker-heartbeat-{self.worker_instance_id[:8]}",
@@ -165,11 +167,22 @@ class IngestionRunner:
                     self._heartbeat_interval,
                 )
 
-    def stop_heartbeat(self) -> None:
-        """Stops the heartbeat loop."""
+    def stop_heartbeat(self, timeout: float = 5.0) -> None:
+        """Stops the heartbeat loop and joins the background thread with timeout."""
+        thread = None
         with self._lock:
-            if self._heartbeat_thread is not None:
-                self._heartbeat_thread = None
+            self._stop_heartbeat_event.set()
+            thread = self._heartbeat_thread
+            self._heartbeat_thread = None
+
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=timeout)
+            if thread.is_alive():
+                logger.warning(
+                    "Heartbeat thread for worker '%s' did not terminate within %.1fs timeout",
+                    self.worker_instance_id,
+                    timeout,
+                )
 
     def start_metrics_server(self) -> None:
         """Starts the internal HTTP server providing Prometheus metrics."""
@@ -197,17 +210,30 @@ class IngestionRunner:
                         exc,
                     )
 
-    def stop_metrics_server(self) -> None:
-        """Shuts down the internal metrics HTTP server."""
+    def stop_metrics_server(self, timeout: float = 5.0) -> None:
+        """Shuts down the internal metrics HTTP server and joins the background thread."""
+        server = None
+        thread = None
         with self._lock:
-            if self._metrics_server is not None:
-                try:
-                    self._metrics_server.shutdown()
-                    self._metrics_server.server_close()
-                except Exception as exc:
-                    logger.warning("Error shutting down worker metrics server: %s", exc)
-                self._metrics_server = None
-                self._metrics_thread = None
+            server = self._metrics_server
+            thread = self._metrics_thread
+            self._metrics_server = None
+            self._metrics_thread = None
+
+        if server is not None:
+            try:
+                server.shutdown()
+                server.server_close()
+            except Exception as exc:
+                logger.warning("Error shutting down worker metrics server: %s", exc)
+
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=timeout)
+            if thread.is_alive():
+                logger.warning(
+                    "Worker metrics thread did not terminate within %.1fs timeout",
+                    timeout,
+                )
 
     def _get_worker(self) -> CheckpointedIngestionWorker:
         if self._ingestion_worker is None:
@@ -245,7 +271,7 @@ class IngestionRunner:
                                 worker_instance_id=self.worker_instance_id,
                                 worker_name=self.worker_name,
                                 hostname=self.hostname,
-                                status="DRAINING" if self._is_draining else "ACTIVE",
+                                status="STOPPING" if self._is_draining else "ACTIVE",
                             )
                         if result.status == "SUCCESS":
                             repo.record_cycle_success(
@@ -280,6 +306,10 @@ class IngestionRunner:
         self.request_drain()
         self._stop_event.set()
 
+        # Stop heartbeat thread and metrics server first to prevent racing with status transition
+        self.stop_heartbeat()
+        self.stop_metrics_server()
+
         # Update database status to STOPPED
         if self._session_factory is not None:
             try:
@@ -304,9 +334,6 @@ class IngestionRunner:
                     "Failed to update worker shutdown status in database: %s",
                     exc,
                 )
-
-        self.stop_heartbeat()
-        self.stop_metrics_server()
 
         if self._database_manager is not None:
             try:

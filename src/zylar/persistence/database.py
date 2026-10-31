@@ -159,17 +159,30 @@ _global_manager: DatabaseManager | None = None
 _global_lock = threading.RLock()
 
 
-def get_database_manager(settings: Settings | None = None) -> DatabaseManager:
-    """Returns the process-wide DatabaseManager singleton."""
+def get_database_manager(
+    settings: Settings | None = None,
+    pool_size: int | None = None,
+    max_overflow: int | None = None,
+) -> DatabaseManager:
+    """Returns the process-wide DatabaseManager singleton configured for API usage."""
     global _global_manager
-    if _global_manager is None or settings is not None:
+    s = settings or get_settings()
+    p_size = pool_size if pool_size is not None else s.api_db_pool_size
+    m_overflow = max_overflow if max_overflow is not None else s.api_db_max_overflow
+
+    if (
+        _global_manager is None
+        or settings is not None
+        or pool_size is not None
+        or max_overflow is not None
+    ):
         with _global_lock:
-            if settings is not None:
+            if settings is not None or pool_size is not None or max_overflow is not None:
                 if _global_manager is not None:
                     _global_manager.dispose()
-                _global_manager = DatabaseManager(settings)
+                _global_manager = DatabaseManager(s, pool_size=p_size, max_overflow=m_overflow)
             elif _global_manager is None:
-                _global_manager = DatabaseManager()
+                _global_manager = DatabaseManager(s, pool_size=p_size, max_overflow=m_overflow)
     return _global_manager
 
 
